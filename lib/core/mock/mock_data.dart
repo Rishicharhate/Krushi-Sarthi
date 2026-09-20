@@ -6,6 +6,7 @@ import '../../shared/models/government_scheme.dart';
 import '../../shared/models/farm.dart';
 import '../../shared/models/farmer_profile.dart';
 import '../../shared/models/notification_item.dart';
+import '../../shared/models/recommendation.dart';
 
 /// Comprehensive realistic demo data for the final-year project presentation.
 /// All values match the spec document.
@@ -239,6 +240,26 @@ class MockData {
       scannedAt: DateTime(2026, 9, 10, 9, 15),
     ),
   ];
+
+  // ── Crop Recommendation Demo Result ──
+  static const cropRecommendation = CropRecommendation(
+    crop: 'Rice',
+    confidence: 96.5,
+    alternatives: [
+      RecommendationAlternative(label: 'Jute', confidence: 2.0),
+      RecommendationAlternative(label: 'Coconut', confidence: 1.0),
+    ],
+  );
+
+  // ── Fertilizer Recommendation Demo Result ──
+  static const fertilizerRecommendation = FertilizerRecommendation(
+    fertilizer: 'Urea',
+    confidence: 89.0,
+    alternatives: [
+      RecommendationAlternative(label: '28-28', confidence: 8.0),
+      RecommendationAlternative(label: '20-20', confidence: 2.5),
+    ],
+  );
 
   // ── Government Schemes ──
   static final governmentSchemes = [

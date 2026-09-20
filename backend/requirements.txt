@@ -22,3 +22,9 @@ torchvision==0.29.0+cpu
 pillow==12.3.0
 numpy==2.2.6
 huggingface_hub==1.32.0
+
+# Crop & fertilizer recommendation (Phase 3, see app/ml/tabular/). Trained
+# locally with train.py — no download, no API key.
+scikit-learn==1.7.2
+pandas==2.3.3
+joblib==1.6.0

@@ -88,6 +88,47 @@ class SoilInsightOut(BaseModel):
     type: str
 
 
+# ── Crop / fertilizer recommendation ── (Phase 3, mirrors
+# lib/shared/models/recommendation.dart) — both models trained in
+# app/ml/tabular/train.py.
+class CropRecommendationIn(BaseModel):
+    nitrogen: float
+    phosphorous: float
+    potassium: float
+    temperature: float
+    humidity: float
+    ph: float
+    rainfall: float
+
+
+class RecommendationAlternativeOut(BaseModel):
+    label: str
+    confidence: float  # 0-100
+
+
+class CropRecommendationOut(BaseModel):
+    crop: str
+    confidence: float  # 0-100
+    alternatives: list[RecommendationAlternativeOut]
+
+
+class FertilizerRecommendationIn(BaseModel):
+    temperature: float
+    humidity: float
+    moisture: float
+    nitrogen: float
+    potassium: float
+    phosphorous: float
+    soil_type: str
+    crop_type: str
+
+
+class FertilizerRecommendationOut(BaseModel):
+    fertilizer: str
+    confidence: float  # 0-100
+    alternatives: list[RecommendationAlternativeOut]
+
+
 # ── Disease detection ── (mirrors lib/shared/models/disease_result.dart)
 class DiseaseDetectionOut(BaseModel):
     disease: str

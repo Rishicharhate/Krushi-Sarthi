@@ -1,0 +1,235 @@
+{
+  "n_samples": 99,
+  "n_classes": 7,
+  "cv_accuracy_mean": 0.9375,
+  "cv_accuracy_std": 0.0685,
+  "cv_fold_scores": [
+    1.0,
+    0.8125,
+    0.9375,
+    0.9375,
+    1.0
+  ],
+  "test_accuracy": 1.0,
+  "labels": [
+    "10-26-26",
+    "14-35-14",
+    "17-17-17",
+    "20-20",
+    "28-28",
+    "DAP",
+    "Urea"
+  ],
+  "confusion_matrix": [
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      3,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      4,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+    ]
+  ],
+  "classification_report": {
+    "10-26-26": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 1.0
+    },
+    "14-35-14": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3.0
+    },
+    "17-17-17": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 1.0
+    },
+    "20-20": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3.0
+    },
+    "28-28": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3.0
+    },
+    "DAP": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 4.0
+    },
+    "Urea": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 20.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 20.0
+    }
+  },
+  "feature_importances": [
+    {
+      "feature": "num__phosphorous",
+      "importance": 0.3064
+    },
+    {
+      "feature": "num__nitrogen",
+      "importance": 0.254
+    },
+    {
+      "feature": "num__potassium",
+      "importance": 0.1458
+    },
+    {
+      "feature": "num__moisture",
+      "importance": 0.0678
+    },
+    {
+      "feature": "num__temperature",
+      "importance": 0.0554
+    },
+    {
+      "feature": "num__humidity",
+      "importance": 0.049
+    },
+    {
+      "feature": "cat__crop_type_Sugarcane",
+      "importance": 0.0137
+    },
+    {
+      "feature": "cat__soil_type_Red",
+      "importance": 0.0119
+    },
+    {
+      "feature": "cat__crop_type_Tobacco",
+      "importance": 0.0092
+    },
+    {
+      "feature": "cat__soil_type_Sandy",
+      "importance": 0.0084
+    },
+    {
+      "feature": "cat__crop_type_Cotton",
+      "importance": 0.0082
+    },
+    {
+      "feature": "cat__soil_type_Loamy",
+      "importance": 0.0081
+    },
+    {
+      "feature": "cat__soil_type_Clayey",
+      "importance": 0.0079
+    },
+    {
+      "feature": "cat__crop_type_Millets",
+      "importance": 0.0075
+    },
+    {
+      "feature": "cat__soil_type_Black",
+      "importance": 0.0072
+    },
+    {
+      "feature": "cat__crop_type_Barley",
+      "importance": 0.0071
+    },
+    {
+      "feature": "cat__crop_type_Ground Nuts",
+      "importance": 0.006
+    },
+    {
+      "feature": "cat__crop_type_Wheat",
+      "importance": 0.0059
+    },
+    {
+      "feature": "cat__crop_type_Oil seeds",
+      "importance": 0.0057
+    },
+    {
+      "feature": "cat__crop_type_Paddy",
+      "importance": 0.0057
+    },
+    {
+      "feature": "cat__crop_type_Maize",
+      "importance": 0.0051
+    },
+    {
+      "feature": "cat__crop_type_Pulses",
+      "importance": 0.0039
+    }
+  ]
+}

@@ -32,6 +32,10 @@ class ApiConstants {
   static const String diseaseDetect = '/api/disease/detect';
   static const String diseaseHistory = '/api/disease/history';
 
+  // ── Recommendation ──
+  static const String recommendCrop = '/api/recommend/crop';
+  static const String recommendFertilizer = '/api/recommend/fertilizer';
+
   // ── Government Schemes ──
   static const String schemes = '/api/schemes';
   static String schemeDetail(String id) => '/api/schemes/$id';
@@ -43,7 +47,14 @@ class ApiConstants {
   static const String profile = '/api/profile';
 
   // ── Timeouts ──
-  static const Duration connectTimeout = Duration(seconds: 15);
+  // connectTimeout must comfortably exceed the slowest backend call: SoilGrids
+  // (app/connectors/soilgrids.py) alone can take 10-20s+ from ISRIC's servers,
+  // observed directly, before the backend's own 20s httpx timeout even fires.
+  // 15s was tighter than that and caused spurious "connection timeout" errors
+  // on the soil screen. On Flutter Web, Dio's browser (XHR) adapter also
+  // appears to bound the whole request by connectTimeout rather than only the
+  // initial handshake, so this needs the same headroom on every platform.
+  static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration imageUploadTimeout = Duration(seconds: 60);
 }

@@ -14,6 +14,9 @@ import '../features/crop_health/crop_map_screen.dart';
 import '../features/disease_detection/disease_detection_screen.dart';
 import '../features/disease_detection/disease_result_screen.dart';
 import '../features/disease_detection/disease_history_screen.dart';
+import '../features/recommendation/recommendation_hub_screen.dart';
+import '../features/recommendation/crop_recommendation_screen.dart';
+import '../features/recommendation/fertilizer_recommendation_screen.dart';
 import '../features/government_schemes/schemes_screen.dart';
 import '../features/government_schemes/scheme_detail_screen.dart';
 import '../features/notifications/notifications_screen.dart';
@@ -131,6 +134,20 @@ final appRouter = GoRouter(
         GoRoute(
           path: 'history',
           builder: (context, state) => const EnvironmentHistoryScreen(),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/recommend',
+      builder: (context, state) => const RecommendationHubScreen(),
+      routes: [
+        GoRoute(
+          path: 'crop',
+          builder: (context, state) => const CropRecommendationScreen(),
+        ),
+        GoRoute(
+          path: 'fertilizer',
+          builder: (context, state) => const FertilizerRecommendationScreen(),
         ),
       ],
     ),

@@ -18,6 +18,7 @@ import '../shared/models/government_scheme.dart';
 import '../shared/models/farm.dart';
 import '../shared/models/farmer_profile.dart';
 import '../shared/models/notification_item.dart';
+import '../shared/models/recommendation.dart';
 
 // ══════════════════════════════════════════════════════════════
 // CORE PROVIDERS
@@ -509,6 +510,78 @@ final diseaseHistoryProvider = FutureProvider<List<DiseaseResult>>((ref) async {
       .map((e) => DiseaseResult.fromJson(e as Map<String, dynamic>))
       .toList();
 });
+
+/// Crop & fertilizer recommendation (Phase 3) — demo mode returns a canned
+/// result; real mode calls the RandomForest models in
+/// backend/app/ml/tabular/ via backend/app/api/recommend.py.
+final recommendationRepositoryProvider = Provider<RecommendationRepository>((ref) {
+  return RecommendationRepository(ref);
+});
+
+class RecommendationRepository {
+  final Ref _ref;
+  RecommendationRepository(this._ref);
+
+  Future<CropRecommendation> recommendCrop({
+    required double nitrogen,
+    required double phosphorous,
+    required double potassium,
+    required double temperature,
+    required double humidity,
+    required double ph,
+    required double rainfall,
+  }) async {
+    if (_ref.read(demoModeProvider)) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      return MockData.cropRecommendation;
+    }
+    final api = await _ref.read(apiClientProvider.future);
+    final response = await api.post<Map<String, dynamic>>(
+      ApiConstants.recommendCrop,
+      data: {
+        'nitrogen': nitrogen,
+        'phosphorous': phosphorous,
+        'potassium': potassium,
+        'temperature': temperature,
+        'humidity': humidity,
+        'ph': ph,
+        'rainfall': rainfall,
+      },
+    );
+    return CropRecommendation.fromJson(response.data!);
+  }
+
+  Future<FertilizerRecommendation> recommendFertilizer({
+    required double temperature,
+    required double humidity,
+    required double moisture,
+    required double nitrogen,
+    required double potassium,
+    required double phosphorous,
+    required String soilType,
+    required String cropType,
+  }) async {
+    if (_ref.read(demoModeProvider)) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      return MockData.fertilizerRecommendation;
+    }
+    final api = await _ref.read(apiClientProvider.future);
+    final response = await api.post<Map<String, dynamic>>(
+      ApiConstants.recommendFertilizer,
+      data: {
+        'temperature': temperature,
+        'humidity': humidity,
+        'moisture': moisture,
+        'nitrogen': nitrogen,
+        'potassium': potassium,
+        'phosphorous': phosphorous,
+        'soil_type': soilType,
+        'crop_type': cropType,
+      },
+    );
+    return FertilizerRecommendation.fromJson(response.data!);
+  }
+}
 
 /// Government schemes.
 final governmentSchemesProvider = FutureProvider<List<GovernmentScheme>>((ref) async {

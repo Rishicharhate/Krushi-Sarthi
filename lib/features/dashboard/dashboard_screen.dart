@@ -459,6 +459,7 @@ class _QuickActionsGrid extends StatelessWidget {
     (icon: Icons.cloud_rounded, label: 'Environment', color: AppColors.skyBlue, route: '/environment'),
     (icon: Icons.satellite_alt_rounded, label: 'Crop Health', color: AppColors.primaryGreen, route: '/crop-health'),
     (icon: Icons.psychology_rounded, label: 'Disease AI', color: AppColors.harvestGold, route: '/disease'),
+    (icon: Icons.eco_rounded, label: 'Recommend', color: AppColors.primaryGreen, route: '/recommend'),
     (icon: Icons.account_balance_rounded, label: 'Schemes', color: AppColors.earthBrownLight, route: '/schemes'),
     (icon: Icons.notifications_rounded, label: 'Alerts', color: AppColors.statusAttention, route: '/notifications'),
   ];
@@ -484,7 +485,9 @@ class _QuickActionsGrid extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              if (action.route == '/environment' || action.route == '/notifications') {
+              if (action.route == '/environment' ||
+                  action.route == '/notifications' ||
+                  action.route == '/recommend') {
                 context.push(action.route);
               } else {
                 context.go(action.route);

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, disease, environment, farms, soil
+from app.api import auth, disease, environment, farms, recommend, soil
 from app.core.config import get_settings
 from app.db.database import init_db
 
@@ -41,3 +41,4 @@ app.include_router(farms.router, prefix=settings.api_v1_prefix)
 app.include_router(environment.router, prefix=settings.api_v1_prefix)
 app.include_router(soil.router, prefix=settings.api_v1_prefix)
 app.include_router(disease.router, prefix=settings.api_v1_prefix)
+app.include_router(recommend.router, prefix=settings.api_v1_prefix)
