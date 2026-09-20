@@ -1,0 +1,100 @@
+"""Pydantic request/response models. Field names and shapes here are chosen to
+match the Dart `fromJson`/`toJson` methods in lib/shared/models/*.dart
+exactly — this file IS the contract, so if you change a field here, update
+the matching Dart model in the same commit.
+"""
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
+
+class AuthRegisterRequest(BaseModel):
+    device_id: str
+    name: str | None = None
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user_id: str
+
+
+# ── Farm ── (mirrors lib/shared/models/farm.dart)
+class FarmIn(BaseModel):
+    name: str
+    location: str | None = None
+    area: float
+    area_unit: str = "Acres"
+    crop: str
+    sowing_date: datetime | None = None
+    soil_type: str | None = None
+    is_active: bool = False
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class FarmOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    location: str | None
+    area: float
+    area_unit: str
+    crop: str
+    sowing_date: datetime | None
+    soil_type: str | None
+    is_active: bool
+    latitude: float | None
+    longitude: float | None
+
+
+# ── Environment ── (mirrors lib/shared/models/environment_data.dart)
+class EnvironmentDataOut(BaseModel):
+    temperature: float
+    humidity: float
+    rainfall: float
+    wind_speed: float
+    temperature_status: str | None = None
+    humidity_status: str | None = None
+    updated_at: datetime
+
+
+class EnvironmentHistoryPointOut(BaseModel):
+    timestamp: datetime
+    value: float
+
+
+# ── Soil ── (mirrors lib/shared/models/soil_data.dart)
+class SoilDataOut(BaseModel):
+    moisture: float
+    temperature: float
+    ph: float
+    nitrogen: float
+    phosphorus: float
+    potassium: float
+    moisture_status: str | None = None
+    ph_status: str | None = None
+    overall_status: str | None = None
+    updated_at: datetime
+
+
+class SoilHistoryPointOut(BaseModel):
+    timestamp: datetime
+    value: float
+
+
+class SoilInsightOut(BaseModel):
+    message: str
+    type: str
+
+
+# ── Disease detection ── (mirrors lib/shared/models/disease_result.dart)
+class DiseaseDetectionOut(BaseModel):
+    disease: str
+    confidence: float  # 0-100, NOT 0-1 — see app/ml/disease/cascade.py
+    crop: str | None = None
+    description: str | None = None
+    symptoms: str | None = None
+    recommendation: str | None = None
+    image_url: str | None = None
+    scanned_at: datetime

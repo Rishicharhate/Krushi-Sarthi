@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/constants/api_constants.dart';
 import '../core/constants/app_constants.dart';
 import '../core/mock/mock_data.dart';
+import '../core/network/api_client.dart';
 import '../core/storage/local_storage.dart';
 import '../shared/models/soil_data.dart';
 import '../shared/models/environment_data.dart';
@@ -97,7 +101,83 @@ final connectivityProvider = StreamProvider<bool>((ref) {
 });
 
 // ══════════════════════════════════════════════════════════════
-// FEATURE PROVIDERS (Demo Mode — uses MockData)
+// BACKEND AUTH (device-bound — the app has no login screen; see
+// backend/app/db/models.py for why. Only used when demo mode is off.)
+// ══════════════════════════════════════════════════════════════
+
+const _deviceIdKey = 'device_id';
+
+/// A stable per-install identifier, generated once and cached. Not a real
+/// UUID library to avoid an extra dependency — just needs to be unique per
+/// install, not cryptographically strong.
+final deviceIdProvider = Provider<String>((ref) {
+  final storage = ref.watch(localStorageProvider);
+  final existing = storage.getString(_deviceIdKey);
+  if (existing != null && existing.isNotEmpty) return existing;
+
+  final rand = Random.secure();
+  final id = List.generate(32, (_) => rand.nextInt(16).toRadixString(16)).join();
+  storage.setString(_deviceIdKey, id);
+  return id;
+});
+
+/// Registers/logs the device in with the backend and caches the bearer
+/// token. No-op in demo mode. See ApiConstants.register.
+final authTokenProvider = FutureProvider<String?>((ref) async {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return null;
+
+  final storage = ref.watch(localStorageProvider);
+  final cached = storage.getString(AppConstants.keyAuthToken);
+  if (cached != null && cached.isNotEmpty) return cached;
+
+  final deviceId = ref.watch(deviceIdProvider);
+  final bootstrapDio = Dio(BaseOptions(
+    baseUrl: ApiConstants.baseUrl,
+    connectTimeout: ApiConstants.connectTimeout,
+  ));
+  final response = await bootstrapDio.post(
+    ApiConstants.register,
+    data: {'device_id': deviceId},
+  );
+  final token = response.data['token'] as String;
+  await storage.setString(AppConstants.keyAuthToken, token);
+  return token;
+});
+
+/// API client carrying the current auth token. Awaited (not watched
+/// synchronously) by every real-mode data provider below, so a request never
+/// goes out before the device is registered.
+final apiClientProvider = FutureProvider<ApiClient>((ref) async {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return ApiClient();
+  final token = await ref.watch(authTokenProvider.future);
+  return ApiClient(authToken: token);
+});
+
+/// Manually selected farm id, persisted. Null = fall back to the backend's
+/// / MockData's own "active" farm.
+final selectedFarmIdProvider = StateNotifierProvider<_SelectedFarmIdNotifier, String?>((ref) {
+  final storage = ref.watch(localStorageProvider);
+  return _SelectedFarmIdNotifier(storage);
+});
+
+class _SelectedFarmIdNotifier extends StateNotifier<String?> {
+  final LocalStorage _storage;
+
+  _SelectedFarmIdNotifier(this._storage)
+      : super(_storage.getString(AppConstants.keyActiveFarmId));
+
+  void select(String farmId) {
+    state = farmId;
+    _storage.setString(AppConstants.keyActiveFarmId, farmId);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FEATURE PROVIDERS
+// Demo mode (default, offline) reads MockData. Real mode calls the FastAPI
+// backend in backend/ — see docs/IMPLEMENTATION_PLAN.md for the data flow.
 // ══════════════════════════════════════════════════════════════
 
 /// Farmer profile.
@@ -106,21 +186,110 @@ final farmerProfileProvider = FutureProvider<FarmerProfile>((ref) async {
   return MockData.farmerProfile;
 });
 
-/// Farms list.
+/// Farms list. Demo mode keeps a mutable in-memory copy of MockData so
+/// Add/Edit/Delete work fully offline; real mode calls the backend.
 final farmsProvider = FutureProvider<List<Farm>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 300));
-  return MockData.farms;
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return ref.watch(demoFarmsProvider);
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(ApiConstants.farms);
+  return (response.data ?? [])
+      .map((e) => Farm.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
-/// Active farm selection.
-final activeFarmProvider = StateProvider<Farm?>((ref) {
-  return MockData.farms.firstWhere((f) => f.isActive, orElse: () => MockData.farms.first);
+final demoFarmsProvider = StateNotifierProvider<_DemoFarmsNotifier, List<Farm>>((ref) {
+  return _DemoFarmsNotifier();
 });
 
-/// Current soil data.
+class _DemoFarmsNotifier extends StateNotifier<List<Farm>> {
+  _DemoFarmsNotifier() : super(List.of(MockData.farms));
+
+  void add(Farm farm) => state = [...state, farm];
+  void update(Farm farm) => state = [for (final f in state) if (f.id == farm.id) farm else f];
+  void remove(String id) => state = state.where((f) => f.id != id).toList();
+}
+
+/// Create/update/delete a farm, routed to demo storage or the backend.
+final farmsRepositoryProvider = Provider<FarmsRepository>((ref) => FarmsRepository(ref));
+
+class FarmsRepository {
+  final Ref _ref;
+  FarmsRepository(this._ref);
+
+  Future<void> createFarm(Farm farm) async {
+    if (_ref.read(demoModeProvider)) {
+      final id = 'farm_${DateTime.now().microsecondsSinceEpoch}';
+      _ref.read(demoFarmsProvider.notifier).add(farm.copyWith(id: id));
+      return;
+    }
+    final api = await _ref.read(apiClientProvider.future);
+    await api.post(ApiConstants.farms, data: farm.toJson()..remove('id'));
+    _ref.invalidate(farmsProvider);
+  }
+
+  Future<void> updateFarm(Farm farm) async {
+    if (_ref.read(demoModeProvider)) {
+      _ref.read(demoFarmsProvider.notifier).update(farm);
+      return;
+    }
+    final api = await _ref.read(apiClientProvider.future);
+    await api.put('${ApiConstants.farms}/${farm.id}', data: farm.toJson());
+    _ref.invalidate(farmsProvider);
+  }
+
+  Future<void> deleteFarm(String farmId) async {
+    if (_ref.read(demoModeProvider)) {
+      _ref.read(demoFarmsProvider.notifier).remove(farmId);
+      return;
+    }
+    final api = await _ref.read(apiClientProvider.future);
+    await api.delete('${ApiConstants.farms}/$farmId');
+    _ref.invalidate(farmsProvider);
+  }
+}
+
+/// Active farm: an explicit user selection if there is one, else whichever
+/// farm the backend/mock data marks `is_active`, else the first farm. Null
+/// while farms are loading or if there are none yet.
+final activeFarmProvider = Provider<Farm?>((ref) {
+  final farms = ref.watch(farmsProvider).asData?.value;
+  if (farms == null || farms.isEmpty) return null;
+
+  final selectedId = ref.watch(selectedFarmIdProvider);
+  if (selectedId != null) {
+    for (final farm in farms) {
+      if (farm.id == selectedId) return farm;
+    }
+  }
+  for (final farm in farms) {
+    if (farm.isActive) return farm;
+  }
+  return farms.first;
+});
+
+/// Current soil data — SoilGrids (topsoil baseline) + Open-Meteo (moisture)
+/// in real mode; see backend/app/api/soil.py.
 final soilDataProvider = FutureProvider<SoilData>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 600));
-  return MockData.soilData;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 600));
+    return MockData.soilData;
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError(
+      'Add a location to your farm to see real soil data (Farms → Edit → Latitude/Longitude).',
+    );
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<Map<String, dynamic>>(
+    ApiConstants.soilCurrent,
+    queryParameters: {'farm_id': farm.id},
+  );
+  return SoilData.fromJson(response.data!);
 });
 
 /// Soil history — parameter-dependent.
@@ -128,25 +297,85 @@ final selectedSoilParamProvider = StateProvider<String>((ref) => 'Moisture');
 final selectedSoilPeriodProvider = StateProvider<String>((ref) => AppConstants.period7d);
 
 final soilHistoryProvider = FutureProvider<List<SoilHistoryPoint>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 400));
   final param = ref.watch(selectedSoilParamProvider);
-  return switch (param) {
-    'pH' => MockData.soilPhHistory(),
-    'Temperature' => MockData.soilTemperatureHistory(),
-    _ => MockData.soilMoistureHistory(),
-  };
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return switch (param) {
+      'pH' => MockData.soilPhHistory(),
+      'Temperature' => MockData.soilTemperatureHistory(),
+      _ => MockData.soilMoistureHistory(),
+    };
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError('Add a location to your farm to see real soil history.');
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  // Note: the backend intentionally has no real daily series for 'pH' — it's
+  // a static soil-survey baseline, not something that changes day to day.
+  final response = await api.get<List<dynamic>>(
+    ApiConstants.soilHistory,
+    queryParameters: {'farm_id': farm.id, 'param': param, 'days': 7},
+  );
+  return (response.data ?? [])
+      .map((e) => SoilHistoryPoint.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
-/// Soil insights.
+/// Soil insights — demo mode uses canned copy; real mode derives short,
+/// honest observations from the actual fetched SoilData.
 final soilInsightsProvider = FutureProvider<List<SoilInsight>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 300));
-  return MockData.soilInsights;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return MockData.soilInsights;
+  }
+  final soil = await ref.watch(soilDataProvider.future);
+  return _deriveSoilInsights(soil);
 });
 
-/// Current environment data.
+List<SoilInsight> _deriveSoilInsights(SoilData soil) {
+  return [
+    SoilInsight(
+      message: soil.moistureStatus == 'Low'
+          ? 'Soil moisture is low (${soil.moisture.toStringAsFixed(0)}%). Consider irrigating soon.'
+          : 'Soil moisture is currently within the recommended range (${soil.moisture.toStringAsFixed(0)}%).',
+      type: soil.moistureStatus == 'Low' ? 'warning' : 'success',
+    ),
+    SoilInsight(
+      message: soil.phStatus == 'Normal'
+          ? 'Soil pH (${soil.ph.toStringAsFixed(1)}) is suitable for most crops.'
+          : 'Soil pH (${soil.ph.toStringAsFixed(1)}) is ${soil.phStatus?.toLowerCase() ?? "out of range"} — this can limit nutrient uptake.',
+      type: soil.phStatus == 'Normal' ? 'success' : 'warning',
+    ),
+    const SoilInsight(
+      message:
+          'Nitrogen, phosphorus and potassium shown are estimated from regional soil survey '
+          'data, not a lab test. For exact values, get a free Soil Health Card test at your '
+          'nearest Krishi Vigyan Kendra.',
+      type: 'info',
+    ),
+  ];
+}
+
+/// Current environment data — Open-Meteo in real mode; see
+/// backend/app/api/environment.py.
 final environmentDataProvider = FutureProvider<EnvironmentData>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 500));
-  return MockData.environmentData;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return MockData.environmentData;
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError(
+      'Add a location to your farm to see real weather data (Farms → Edit → Latitude/Longitude).',
+    );
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<Map<String, dynamic>>(
+    ApiConstants.environmentCurrent,
+    queryParameters: {'farm_id': farm.id},
+  );
+  return EnvironmentData.fromJson(response.data!);
 });
 
 /// Environment history.
@@ -154,18 +383,37 @@ final selectedEnvParamProvider = StateProvider<String>((ref) => 'Temperature');
 final selectedEnvPeriodProvider = StateProvider<String>((ref) => AppConstants.period7d);
 
 final environmentHistoryProvider = FutureProvider<List<EnvironmentHistoryPoint>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 400));
   final param = ref.watch(selectedEnvParamProvider);
-  return switch (param) {
-    'Humidity' => MockData.humidityHistory(),
-    _ => MockData.temperatureHistory(),
-  };
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return switch (param) {
+      'Humidity' => MockData.humidityHistory(),
+      _ => MockData.temperatureHistory(),
+    };
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError('Add a location to your farm to see real weather history.');
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(
+    ApiConstants.environmentHistory,
+    queryParameters: {'farm_id': farm.id, 'param': param, 'days': 7},
+  );
+  return (response.data ?? [])
+      .map((e) => EnvironmentHistoryPoint.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
-/// Environment alerts.
+/// Environment alerts. No backend endpoint yet — that's the LangGraph agent's
+/// job (docs/IMPLEMENTATION_PLAN.md §3), not a plain GET. Demo mode shows
+/// sample alerts; real mode shows none rather than fabricating any.
 final environmentAlertsProvider = FutureProvider<List<EnvironmentAlert>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 300));
-  return MockData.environmentAlerts;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return MockData.environmentAlerts;
+  }
+  return const [];
 });
 
 /// Crop health / NDVI.
@@ -180,14 +428,19 @@ final ndviHistoryProvider = FutureProvider<List<NdviHistoryPoint>>((ref) async {
   return MockData.ndviHistory;
 });
 
-/// Disease detection state.
+/// Disease detection state. Real mode posts to the confidence-gated cascade
+/// in backend/app/ml/disease/ (see docs/IMPLEMENTATION_PLAN.md §1.1); the
+/// backend may itself decline with a low-confidence "Uncertain — possible
+/// X" result rather than erroring — that is a normal success response, not
+/// a failure.
 final diseaseDetectionProvider =
     StateNotifierProvider<DiseaseDetectionNotifier, DiseaseDetectionState>((ref) {
-  return DiseaseDetectionNotifier();
+  return DiseaseDetectionNotifier(ref);
 });
 
 class DiseaseDetectionNotifier extends StateNotifier<DiseaseDetectionState> {
-  DiseaseDetectionNotifier() : super(const DiseaseDetectionState());
+  final Ref _ref;
+  DiseaseDetectionNotifier(this._ref) : super(const DiseaseDetectionState());
 
   void selectImage(String path) {
     state = DiseaseDetectionState(
@@ -197,21 +450,46 @@ class DiseaseDetectionNotifier extends StateNotifier<DiseaseDetectionState> {
   }
 
   Future<void> analyzeImage() async {
+    final imagePath = state.imagePath;
+    if (imagePath == null) return;
+
     state = state.copyWith(status: DiseaseDetectionStatus.uploading, uploadProgress: 0.0);
 
-    // Simulate upload progress
-    for (var i = 0; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      state = state.copyWith(uploadProgress: i / 10);
+    if (_ref.read(demoModeProvider)) {
+      for (var i = 0; i <= 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        state = state.copyWith(uploadProgress: i / 10);
+      }
+      state = state.copyWith(status: DiseaseDetectionStatus.analyzing);
+      await Future.delayed(const Duration(seconds: 2));
+      state = state.copyWith(status: DiseaseDetectionStatus.success, result: MockData.diseaseResult);
+      return;
     }
 
-    state = state.copyWith(status: DiseaseDetectionStatus.analyzing);
-    await Future.delayed(const Duration(seconds: 2));
-
-    state = state.copyWith(
-      status: DiseaseDetectionStatus.success,
-      result: MockData.diseaseResult,
-    );
+    try {
+      final api = await _ref.read(apiClientProvider.future);
+      final response = await api.uploadFile<Map<String, dynamic>>(
+        ApiConstants.diseaseDetect,
+        filePath: imagePath,
+        onSendProgress: (sent, total) {
+          if (total > 0) {
+            state = state.copyWith(uploadProgress: sent / total);
+          }
+        },
+      );
+      state = state.copyWith(status: DiseaseDetectionStatus.analyzing);
+      state = state.copyWith(
+        status: DiseaseDetectionStatus.success,
+        result: DiseaseResult.fromJson(response.data!),
+      );
+      _ref.invalidate(diseaseHistoryProvider);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = data is Map && data['detail'] != null
+          ? data['detail'].toString()
+          : 'Analysis failed. Please try again.';
+      state = state.copyWith(status: DiseaseDetectionStatus.error, errorMessage: message);
+    }
   }
 
   void reset() {
@@ -221,8 +499,15 @@ class DiseaseDetectionNotifier extends StateNotifier<DiseaseDetectionState> {
 
 /// Disease history.
 final diseaseHistoryProvider = FutureProvider<List<DiseaseResult>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 300));
-  return MockData.diseaseHistory;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return MockData.diseaseHistory;
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(ApiConstants.diseaseHistory);
+  return (response.data ?? [])
+      .map((e) => DiseaseResult.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
 /// Government schemes.

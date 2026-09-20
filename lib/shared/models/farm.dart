@@ -10,6 +10,11 @@ class Farm {
   final String? soilType;
   final bool isActive;
 
+  /// Coordinates of the farm. Every real data source (weather, soil, NDVI)
+  /// is geospatial, so a farm without these can only show demo/mock data.
+  final double? latitude;
+  final double? longitude;
+
   const Farm({
     required this.id,
     required this.name,
@@ -20,7 +25,11 @@ class Farm {
     this.sowingDate,
     this.soilType,
     this.isActive = false,
+    this.latitude,
+    this.longitude,
   });
+
+  bool get hasCoordinates => latitude != null && longitude != null;
 
   factory Farm.fromJson(Map<String, dynamic> json) {
     return Farm(
@@ -35,6 +44,8 @@ class Farm {
           : null,
       soilType: json['soil_type'] as String?,
       isActive: json['is_active'] as bool? ?? false,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -48,6 +59,8 @@ class Farm {
     'sowing_date': sowingDate?.toIso8601String(),
     'soil_type': soilType,
     'is_active': isActive,
+    'latitude': latitude,
+    'longitude': longitude,
   };
 
   Farm copyWith({
@@ -60,6 +73,8 @@ class Farm {
     DateTime? sowingDate,
     String? soilType,
     bool? isActive,
+    double? latitude,
+    double? longitude,
   }) {
     return Farm(
       id: id ?? this.id,
@@ -71,6 +86,8 @@ class Farm {
       sowingDate: sowingDate ?? this.sowingDate,
       soilType: soilType ?? this.soilType,
       isActive: isActive ?? this.isActive,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
     );
   }
 }

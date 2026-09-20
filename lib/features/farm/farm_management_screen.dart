@@ -44,7 +44,7 @@ class FarmManagementScreen extends ConsumerWidget {
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: () => ref.read(activeFarmProvider.notifier).state = farm,
+                onTap: () => ref.read(selectedFarmIdProvider.notifier).select(farm.id),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -85,8 +85,31 @@ class FarmManagementScreen extends ConsumerWidget {
                                   )),
                             ),
                           PopupMenuButton<String>(
-                            onSelected: (v) {
-                              if (v == 'edit') context.push('/farms/edit/${farm.id}');
+                            onSelected: (v) async {
+                              if (v == 'edit') {
+                                context.push('/farms/edit/${farm.id}');
+                              } else if (v == 'delete') {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('Delete farm?'),
+                                    content: Text('This removes "${farm.name}" and its saved data.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed == true) {
+                                  await ref.read(farmsRepositoryProvider).deleteFarm(farm.id);
+                                }
+                              }
                             },
                             itemBuilder: (_) => [
                               const PopupMenuItem(value: 'edit', child: Text('Edit')),

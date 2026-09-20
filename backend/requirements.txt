@@ -1,0 +1,24 @@
+# KrushiSarthi backend — every dependency here is free / open-source.
+# No paid service is required to run this file's feature set.
+
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+pydantic==2.10.3
+pydantic-settings==2.7.0
+httpx==0.28.1
+python-jose[cryptography]==3.3.0
+python-dotenv==1.0.1
+python-multipart==0.0.20
+
+# Disease detection (Phase 2, see docs/IMPLEMENTATION_PLAN.md §1.1 and
+# app/ml/disease/). CPU-only PyTorch wheels — no GPU/CUDA required, and no
+# paid API key. First request after a fresh install downloads the ~9 MB
+# checkpoint from Hugging Face (cached under the huggingface_hub cache dir
+# after that).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
+torchvision==0.29.0+cpu
+pillow==12.3.0
+numpy==2.2.6
+huggingface_hub==1.32.0

@@ -34,6 +34,8 @@ class MockData {
       sowingDate: DateTime(2026, 6, 15),
       soilType: 'Black (Regur)',
       isActive: true,
+      latitude: 21.32,
+      longitude: 74.88,
     ),
     Farm(
       id: 'farm_002',
@@ -45,6 +47,8 @@ class MockData {
       sowingDate: DateTime(2026, 6, 20),
       soilType: 'Alluvial',
       isActive: false,
+      latitude: 21.33,
+      longitude: 74.89,
     ),
   ];
 
