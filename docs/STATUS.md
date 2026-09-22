@@ -34,10 +34,39 @@ different machine and hit the same "version solving failed" error, that's why.
 | Soil (history) | **Real** for Moisture/Temperature. pH history is not exposed (SoilGrids is a static baseline, not a daily series) — requesting it returns a clear error, not fabricated data |
 | Soil insights | **Real** — derived client-side from the actual fetched SoilData in real mode; canned copy in demo mode |
 | Environment alerts | **Not implemented in real mode** — this is the LangGraph agent's job (plan §3), not a plain GET. Real mode returns an empty list rather than fake alerts |
-| Crop health / NDVI | **Demo only** — needs a Copernicus Data Space account (free, but requires signup) before the Sentinel connector can be built |
-| Government schemes | **Demo only** — Phase 5 (RAG) |
-| Notifications | **Demo only** — Phase 5 (daily agent worker) |
+| Crop health / NDVI | **Real** — Sentinel-2 L2A, cloud-masked. See "NDVI without a Copernicus account" below |
+| Mandi prices | **Real** — Agmarknet daily prices via data.gov.in |
+| Government schemes | **Real** — local corpus + semantic search (Phase 5) |
+| Notifications | **Real** — written by the daily automation worker (Phase 5) |
 | Farmer profile | **Demo only** — not wired to the backend `User` row yet |
+
+## NDVI without a Copernicus account — a correction
+
+Earlier versions of this file said NDVI was blocked on a free-but-required
+Copernicus Data Space signup. **That was wrong**, and worth recording because
+the mistake was a process failure, not a technical one: the plan named one
+route and it was taken as the only route, without checking for others.
+
+Sentinel-2 L2A is also mirrored on **AWS Open Data**, searchable through the
+public Earth Search STAC API and readable anonymously over HTTP range
+requests — **no account, no API key, no Processing Unit budget**. Because
+the imagery is stored as Cloud-Optimized GeoTIFFs, a windowed read of a
+~200m box around one farm fetches a few KB rather than the 100MB+ full band.
+`backend/app/connectors/sentinel.py` uses this route.
+
+**Cloud masking is the real constraint, and it is not optional.** Over the
+test farm (Shirpur, monsoon season) every scene in a 6-week window was
+52–100% cloud, and the first reading attempted was measuring cloud *shadow*,
+not crop. Every NDVI value is therefore masked with the scene classification
+(SCL) band and discarded if under 40% of the field's pixels are genuinely
+clear; the API then returns a plain "no cloud-free view since <date>"
+instead of a number. Reporting a cloud-shadow NDVI as crop health would be
+the same class of error as a confidently wrong disease diagnosis.
+
+Verified end to end: NDVI **0.824 ("Healthy")** from the 2026-09-15 pass.
+Note the connector chose that scene over the *less* cloudy 2026-09-20 one,
+because scene-wide cloud percentage is only a prior — what matters is
+whether this particular field was clear.
 
 ## Phase 2 — Disease detection: done (cascade stages [0],[1],[4] only)
 
@@ -120,21 +149,31 @@ and is the thing worth putting in the report.
 - No pre-built UI existed for this feature (unlike disease detection) — both
   the models and the screens were built this phase.
 
-## Phase 4 — The agent: done, scoped to 3 real specialists
+## Phase 4 — The agent: done, all 5 specialists
 
 - LangGraph agent (`backend/app/agent/`) behind `POST /api/advisory/ask` —
   ask a free-text question, get a sourced answer grounded in the farm's real
   data. Flutter: `lib/features/advisory/` chat screen ("Ask KrushiSarthi" on
   the dashboard).
-- Graph: `weather` + `soil` + `disease` specialists run in parallel
-  (deterministic — they call connectors/DB, no LLM) → `synthesis` → `writer`
-  (the only 2 LLM calls per question) → deterministic `safety_gate` (keyword
-  check for dosage/pesticide language, not an LLM call) → end. Every answer
-  carries its `sources` (which tool, which value).
-- **NDVI and market-price specialists are not built** — those connectors
-  don't exist yet (Copernicus signup, Agmarknet), so the plan's full 5-domain
-  graph is not implemented. Adding them later only needs new nodes in
-  `agent/nodes.py` plus new `FarmState` fields — nothing else changes.
+- Graph: `weather` + `soil` + `disease` + `ndvi` + `market` specialists run
+  in parallel (deterministic — they call connectors/DB, no LLM) →
+  `synthesis` → `writer` (the only 2 LLM calls per question) → deterministic
+  `safety_gate` (keyword check for dosage/pesticide language, not an LLM
+  call) → end. Every answer carries its `sources` (which tool, which value).
+- All 5 specialists from the plan's §3.2 diagram are wired up. NDVI and
+  market were added after discovering both data sources were reachable
+  without the account signups originally assumed (see the NDVI correction
+  above). Verified: asking "how is my crop doing, and is it a good time to
+  sell?" returns an answer correlating NDVI 0.82, soil moisture, the
+  irrigation deficit *and* live mandi prices.
+- **Geography caveat, found by testing:** the first market-enabled answer
+  told a Maharashtra farmer to sell at a Tamil Nadu mandi ~1500km away,
+  because Agmarknet returns nationwide prices. The market finding now states
+  which states the mandis span and explicitly instructs the model not to
+  treat a distant high price as reachable; the re-test correctly said the
+  Rs 11,000 price "is from distant Tamil Nadu mandis and isn't a realistic
+  option for you." Filtering by the farmer's own state would be the better
+  fix once `FarmerProfile` is wired to the backend `User` row.
 - New pure function `backend/app/agronomy/water_balance.py` (FAO-56
   irrigation math, ET0 × Kc − effective rainfall) — built this phase because
   the flagship question ("should I irrigate this week?") needs real
@@ -238,16 +277,17 @@ changes.
 
 ## Next up (not started)
 
-- Phase 1 remainder: NDVI via Copernicus (needs the user to create a free
-  Copernicus Data Space account — can't be automated).
+- Phase 1: **complete.** NDVI was the last gap and is now real (no
+  Copernicus account needed — see the correction above).
 - Phase 2 remainder: cascade stages [2]/[3] (VLM second opinion, paid API
   fallback) once API keys exist — these would lift the ~27% of field photos
   the local model currently gets wrong. Optionally, fine-tuning on the
   PlantDoc *train* split would both raise accuracy and remove the residual
   (small) data-leakage uncertainty noted in `disease_field_eval.json`.
-- Phase 4 remainder: NDVI/market specialists once their connectors exist;
-  multi-turn follow-up questions from the Flutter chat (the checkpointer
-  already persists state per farm, just not exposed yet); LangSmith tracing.
+- Phase 4 remainder: multi-turn follow-up questions from the Flutter chat
+  (the checkpointer already persists state per farm, just not exposed yet);
+  LangSmith tracing; filtering mandi prices to the farmer's own state once
+  `FarmerProfile` is wired to the backend `User` row.
 - Phase 5 remainder: FCM push notifications (needs a Firebase project —
   real account setup, can't be automated) and voice (IndicConformer ASR +
   IndicTrans2 — large models, needs Flutter mic/audio wiring, worth its own

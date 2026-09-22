@@ -1,15 +1,14 @@
 """Thin, typed wrappers the specialist nodes call. Every external/DB read the
 agent can see goes through here, one function per data source — matching
-docs/IMPLEMENTATION_PLAN.md §3.3's tool table, scoped to the 3 domains with
-real data behind them right now (weather, soil, disease). The agent never
-calls a connector or the DB directly from a node.
+docs/IMPLEMENTATION_PLAN.md §3.3's tool table. The agent never calls a
+connector or the DB directly from a node.
 """
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.agronomy import soil_status, water_balance
-from app.connectors import open_meteo, soilgrids
+from app.connectors import agmarknet, open_meteo, sentinel, soilgrids
 from app.db.models import DiseaseScan
 
 
@@ -42,6 +41,22 @@ async def fetch_soil(db: Session, lat: float, lon: float) -> dict:
         "moisture_pct": moisture_pct,
         "moisture_status": soil_status.classify_moisture(moisture_pct) if moisture_pct is not None else None,
     }
+
+
+async def fetch_ndvi(db: Session, lat: float, lon: float) -> dict | None:
+    """Latest cloud-free NDVI reading, or None when the field has had no
+    clear satellite pass — which is a real answer, not a failure."""
+    try:
+        return await sentinel.get_latest_ndvi(db, lat, lon)
+    except Exception:  # noqa: BLE001 — degrade gracefully like the other tools
+        return None
+
+
+async def fetch_market_prices(db: Session, crop: str, limit: int = 20) -> list[dict]:
+    try:
+        return await agmarknet.get_mandi_prices(db, commodity=crop, limit=limit)
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def fetch_recent_disease_scans(db: Session, user_id: str, days: int = 7, limit: int = 3) -> list[dict]:

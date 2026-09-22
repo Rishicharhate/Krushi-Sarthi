@@ -149,6 +149,37 @@ class AdvisoryAskOut(BaseModel):
     sources: list[AdvisorySourceOut]
 
 
+# ── Crop health / NDVI ── (mirrors lib/shared/models/crop_health.dart) —
+# real Sentinel-2, cloud-masked, see app/connectors/sentinel.py.
+class CropHealthOut(BaseModel):
+    ndvi: float
+    health_status: str
+    crop: str
+    date: datetime
+    image_url: str | None = None
+    previous_ndvi: float | None = None
+    ndvi_change: float | None = None
+
+
+class NdviHistoryPointOut(BaseModel):
+    date: datetime
+    ndvi: float
+    health_status: str | None = None
+
+
+# ── Market prices ── (mirrors lib/shared/models/market_price.dart)
+class MarketPriceOut(BaseModel):
+    commodity: str | None = None
+    variety: str | None = None
+    market: str | None = None
+    district: str | None = None
+    state: str | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    modal_price: float | None = None
+    arrival_date: str | None = None
+
+
 # ── Government schemes ── (Phase 5, mirrors
 # lib/shared/models/government_scheme.dart) — corpus + semantic search in
 # app/rag/.

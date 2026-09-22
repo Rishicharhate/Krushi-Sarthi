@@ -20,6 +20,7 @@ import '../shared/models/farmer_profile.dart';
 import '../shared/models/notification_item.dart';
 import '../shared/models/recommendation.dart';
 import '../shared/models/advisory.dart';
+import '../shared/models/market_price.dart';
 
 // ══════════════════════════════════════════════════════════════
 // CORE PROVIDERS
@@ -429,16 +430,90 @@ final environmentAlertsProvider = FutureProvider<List<EnvironmentAlert>>((ref) a
   return const [];
 });
 
-/// Crop health / NDVI.
+/// Crop health / NDVI — real mode reads cloud-masked Sentinel-2 imagery via
+/// the backend (no account needed; see backend/app/connectors/sentinel.py).
+/// Satellite reads are slow, hence the longer timeout: the backend fetches
+/// windowed COGs over HTTP and the result is cached for a revisit cycle.
 final cropHealthProvider = FutureProvider<CropHealth>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 500));
-  return MockData.cropHealth;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return MockData.cropHealth;
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError(
+      'Add a location to your farm to see real satellite crop health (Farms → Edit → Latitude/Longitude).',
+    );
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  try {
+    final response = await api.get<Map<String, dynamic>>(
+      ApiConstants.cropHealth,
+      queryParameters: {'farm_id': farm.id},
+      options: Options(receiveTimeout: const Duration(minutes: 4)),
+    );
+    return CropHealth.fromJson(response.data!);
+  } on DioException catch (e) {
+    // 404 here isn't a bug — it means Sentinel-2 had no cloud-free view of
+    // this field. Surface that plainly instead of a raw Dio error.
+    if (e.response?.statusCode == 404) {
+      throw StateError(
+        e.response?.data is Map && e.response?.data['detail'] != null
+            ? e.response!.data['detail'].toString()
+            : 'No cloud-free satellite view of this field recently.',
+      );
+    }
+    rethrow;
+  }
 });
 
-/// NDVI history.
+/// NDVI history — one point per cloud-free satellite pass.
 final ndviHistoryProvider = FutureProvider<List<NdviHistoryPoint>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 400));
-  return MockData.ndviHistory;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return MockData.ndviHistory;
+  }
+  final farm = ref.watch(activeFarmProvider);
+  if (farm == null || !farm.hasCoordinates) {
+    throw StateError('Add a location to your farm to see real NDVI history.');
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(
+    ApiConstants.ndviHistory,
+    queryParameters: {'farm_id': farm.id},
+    options: Options(receiveTimeout: const Duration(minutes: 4)),
+  );
+  return (response.data ?? [])
+      .map((e) => NdviHistoryPoint.fromJson(e as Map<String, dynamic>))
+      .toList();
+});
+
+/// Mandi price search term — empty means "use the active farm's crop".
+final marketCommodityProvider = StateProvider<String>((ref) => '');
+
+/// Mandi (APMC) prices from Agmarknet — real in both modes' absence of mock
+/// data; demo mode returns a small canned sample.
+final marketPricesProvider = FutureProvider<List<MarketPrice>>((ref) async {
+  final commodity = ref.watch(marketCommodityProvider).trim();
+
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return MockData.marketPrices;
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final farm = ref.watch(activeFarmProvider);
+  final response = await api.get<List<dynamic>>(
+    ApiConstants.marketPrices,
+    queryParameters: {
+      if (commodity.isNotEmpty) 'commodity': commodity,
+      if (commodity.isEmpty && farm != null) 'farm_id': farm.id,
+      'limit': 20,
+    },
+    options: Options(receiveTimeout: const Duration(seconds: 60)),
+  );
+  return (response.data ?? [])
+      .map((e) => MarketPrice.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
 /// Disease detection state. Real mode posts to the confidence-gated cascade

@@ -8,6 +8,7 @@ import '../../shared/models/farmer_profile.dart';
 import '../../shared/models/notification_item.dart';
 import '../../shared/models/recommendation.dart';
 import '../../shared/models/advisory.dart';
+import '../../shared/models/market_price.dart';
 
 /// Comprehensive realistic demo data for the final-year project presentation.
 /// All values match the spec document.
@@ -261,6 +262,19 @@ class MockData {
       RecommendationAlternative(label: '20-20', confidence: 2.5),
     ],
   );
+
+  // ── Mandi Prices Demo Sample ──
+  static const marketPrices = [
+    MarketPrice(
+      commodity: 'Soyabean', market: 'APMC Latur', district: 'Latur', state: 'Maharashtra',
+      minPrice: 5200, maxPrice: 6100, modalPrice: 5800, arrivalDate: '2026-09-22'),
+    MarketPrice(
+      commodity: 'Soyabean', market: 'Sarangpur APMC', district: 'Rajgarh', state: 'Madhya Pradesh',
+      minPrice: 5400, maxPrice: 6000, modalPrice: 5891, arrivalDate: '2026-09-22'),
+    MarketPrice(
+      commodity: 'Soyabean', market: 'Bagalkot APMC', district: 'Bagalkot', state: 'Karnataka',
+      minPrice: 5100, maxPrice: 5800, modalPrice: 5535, arrivalDate: '2026-09-22'),
+  ];
 
   // ── Advisory Agent Demo Answer ──
   static const advisoryAnswer = AdvisoryAnswer(

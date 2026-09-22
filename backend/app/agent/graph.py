@@ -1,17 +1,19 @@
 """Builds and compiles the farm advisory LangGraph. See state.py for the
-schema and docs/IMPLEMENTATION_PLAN.md §3 for the design this follows,
-scoped to the 3 specialists with real data behind them today:
+schema and docs/IMPLEMENTATION_PLAN.md §3 for the design this follows — all
+five specialists from the plan's §3.2 diagram are now wired up:
 
     START --> weather  --\\
-          --> soil      ---> synthesis --> writer --> safety_gate --> END
-          --> disease   --/
+          --> soil       \\
+          --> disease     --> synthesis --> writer --> safety_gate --> END
+          --> ndvi        /
+          --> market     /
 
-weather/soil/disease run in parallel (LangGraph's fan-out) and their
-`findings` merge via the additive reducer in state.py; synthesis/writer are
-the only two LLM calls per question. A SQLite checkpointer persists state per
-(user, farm) thread — same zero-infrastructure philosophy as the rest of this
-backend (see app/core/config.py's database_url comment); swap for Postgres
-if this ever needs to survive concurrent production load.
+All five run in parallel (LangGraph's fan-out) and their `findings` merge via
+the additive reducer in state.py; synthesis/writer are the only two LLM calls
+per question. A SQLite checkpointer persists state per (user, farm) thread —
+same zero-infrastructure philosophy as the rest of this backend (see
+app/core/config.py's database_url comment); swap for Postgres if this ever
+needs to survive concurrent production load.
 """
 from pathlib import Path
 
@@ -32,6 +34,8 @@ def _build() -> StateGraph:
     builder.add_node("weather", nodes.weather_node)
     builder.add_node("soil", nodes.soil_node)
     builder.add_node("disease", nodes.disease_node)
+    builder.add_node("ndvi", nodes.ndvi_node)
+    builder.add_node("market", nodes.market_node)
     builder.add_node("synthesis", nodes.synthesis_node)
     builder.add_node("writer", nodes.writer_node)
     builder.add_node("safety_gate", nodes.safety_gate_node)
@@ -39,7 +43,9 @@ def _build() -> StateGraph:
     builder.add_edge(START, "weather")
     builder.add_edge(START, "soil")
     builder.add_edge(START, "disease")
-    builder.add_edge(["weather", "soil", "disease"], "synthesis")
+    builder.add_edge(START, "ndvi")
+    builder.add_edge(START, "market")
+    builder.add_edge(["weather", "soil", "disease", "ndvi", "market"], "synthesis")
     builder.add_edge("synthesis", "writer")
     builder.add_edge("writer", "safety_gate")
     builder.add_edge("safety_gate", END)

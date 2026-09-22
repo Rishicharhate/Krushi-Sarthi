@@ -43,3 +43,7 @@ aiosqlite==0.22.1
 # Hugging Face on first use.
 apscheduler==3.11.3
 sentence-transformers==6.1.0
+
+# Sentinel-2 NDVI (app/connectors/sentinel.py) — windowed reads of public
+# Cloud-Optimized GeoTIFFs over HTTP range requests. No account, no API key.
+rasterio==1.4.4

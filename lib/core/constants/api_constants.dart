@@ -39,6 +39,9 @@ class ApiConstants {
   static const String recommendCrop = '/api/recommend/crop';
   static const String recommendFertilizer = '/api/recommend/fertilizer';
 
+  // ── Market Prices ──
+  static const String marketPrices = '/api/market/prices';
+
   // ── Government Schemes ──
   static const String schemes = '/api/schemes';
   static const String schemeSearch = '/api/schemes/search';

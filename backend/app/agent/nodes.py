@@ -96,6 +96,79 @@ async def disease_node(state: FarmState) -> dict:
     return {"disease": latest, "findings": findings}
 
 
+async def ndvi_node(state: FarmState) -> dict:
+    farm = state["farm"]
+    db = SessionLocal()
+    try:
+        reading = await tools.fetch_ndvi(db, farm["latitude"], farm["longitude"])
+    finally:
+        db.close()
+
+    if reading is None:
+        # Say so explicitly rather than staying silent — "we couldn't see the
+        # field" is itself information the writer should be able to use.
+        return {
+            "ndvi": None,
+            "findings": [{
+                "domain": "ndvi",
+                "summary": "No cloud-free satellite view of the field recently, so crop vigour (NDVI) is unknown.",
+                "source": "Sentinel-2 L2A (AWS Open Data) — no clear pass in the lookback window",
+            }],
+        }
+
+    change = reading.get("ndvi_change")
+    trend = ""
+    if change is not None:
+        direction = "up" if change > 0 else "down" if change < 0 else "flat"
+        trend = f" ({direction} {abs(change):.3f} since the previous clear pass)"
+    return {
+        "ndvi": reading,
+        "findings": [{
+            "domain": "ndvi",
+            "summary": (
+                f"NDVI {reading['ndvi']:.2f} ({reading['health_status']}) on "
+                f"{reading['date']}{trend}."
+            ),
+            "source": reading["source"],
+        }],
+    }
+
+
+async def market_node(state: FarmState) -> dict:
+    farm = state["farm"]
+    db = SessionLocal()
+    try:
+        prices = await tools.fetch_market_prices(db, farm["crop"])
+    finally:
+        db.close()
+
+    if not prices:
+        return {"market": None, "findings": []}
+
+    modal = [p["modal_price"] for p in prices if p.get("modal_price") is not None]
+    if not modal:
+        return {"market": prices, "findings": []}
+
+    average = sum(modal) / len(modal)
+    best = max(prices, key=lambda p: p.get("modal_price") or 0)
+    states = sorted({p.get("state") for p in prices if p.get("state")})
+    return {
+        "market": prices,
+        "findings": [{
+            "domain": "market",
+            "summary": (
+                f"{farm['crop']} modal price averages Rs {average:.0f}/quintal across "
+                f"{len(modal)} reporting mandis; highest is Rs {best['modal_price']:.0f} at "
+                f"{best.get('market')}, {best.get('district')}, {best.get('state')} "
+                f"({best.get('arrival_date')}). These mandis span {', '.join(states)} — "
+                f"they are NOT filtered to this farm's own state, so do not treat a "
+                f"high price in a distant state as somewhere this farmer can realistically sell."
+            ),
+            "source": "Agmarknet daily mandi prices (data.gov.in), nationwide sample",
+        }],
+    }
+
+
 _SYNTHESIS_PROMPT = """You are an agronomy assistant correlating field data for an Indian farmer's {crop} crop.
 Given these findings, write 2-4 SHORT bullet points connecting anything that matters together
 (e.g. low soil moisture + high water need + no rain forecast = irrigation is urgent; do not just

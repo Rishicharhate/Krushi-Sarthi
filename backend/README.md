@@ -22,15 +22,50 @@ phase-by-phase account of what was actually built vs. what the plan sketched.
 | `GET /api/disease/history` | local DB | per-user scan history, newest first |
 | `POST /api/recommend/crop` | local RandomForest | trained on 2200 rows, 22 crops, 99.6% test accuracy — see `app/ml/tabular/` |
 | `POST /api/recommend/fertilizer` | local RandomForest | trained on 99 rows, 7 fertilizers — see `app/ml/tabular/` |
-| `POST /api/advisory/ask` | LangGraph agent (Groq LLM) | weather + soil + disease specialists, FAO-56 irrigation math, sourced answers — see `app/agent/`. **Needs `GROQ_API_KEY`** |
+| `POST /api/advisory/ask` | LangGraph agent (Groq LLM) | all 5 specialists (weather, soil, disease, NDVI, market) + FAO-56 irrigation math, sourced answers — see `app/agent/`. **Needs `GROQ_API_KEY`** |
 | `GET /api/schemes`, `GET /api/schemes/{id}` | local corpus | 7 real central government schemes — see `app/data/` |
 | `GET /api/schemes/search` | local embeddings | semantic search, not keyword match — see `app/rag/` |
 | `GET /api/notifications` | local DB | written by the daily automation worker |
+| `GET /api/crop/health`, `GET /api/crop/ndvi/history` | Sentinel-2 (AWS Open Data) | real cloud-masked NDVI, **no account or API key** — see "Sentinel-2 NDVI" below |
+| `GET /api/market/prices` | Agmarknet (data.gov.in) | real daily mandi prices — see "Mandi prices" below |
 | `POST /api/notifications/run-daily` | local DB + agent tools | manually runs today's check now, instead of waiting for the 05:30 IST cron — see `app/workers/daily_advisory.py` |
 
-Not yet implemented: crop health/NDVI (needs a free Copernicus Data Space
-signup), farmer profile sync, FCM push, voice. All demo-mode-only on the
-Flutter side for now.
+Not yet implemented: farmer profile sync, FCM push, voice. Demo-mode-only
+on the Flutter side for now.
+
+## Sentinel-2 NDVI — no Copernicus account needed
+
+The plan routes NDVI through Copernicus Data Space, which needs a
+free-but-registered account and a Processing Unit budget. There is a second
+route with neither: Sentinel-2 L2A is mirrored on **AWS Open Data**,
+searchable via the public Earth Search STAC API and readable anonymously over
+HTTP range requests. Cloud-Optimized GeoTIFFs mean a windowed read around one
+farm fetches a few KB, not the 100MB+ full band.
+
+**Cloud masking is mandatory here, not a nicety.** Every reading is masked
+with the scene classification (SCL) band and rejected if fewer than 40% of
+the field's pixels are genuinely clear — the endpoint then 404s with a plain
+"no cloud-free view" message rather than returning an NDVI that is really
+measuring cloud shadow. Over an Indian monsoon that can be the honest answer
+for weeks. See `app/connectors/sentinel.py`.
+
+## Mandi prices
+
+`app/connectors/agmarknet.py`. Two things that cost real debugging time and
+are documented in that file so they don't have to be rediscovered:
+
+  * data.gov.in **silently stalls** requests carrying httpx's default
+    `python-httpx/...` User-Agent — the connection just hangs until timeout
+    with no error explaining why. An honest client identifier gets an
+    instant 200.
+  * Commodity names are Agmarknet's own vocabulary, not what farmers type:
+    `Soybean` matches 0 records, `Soyabean` matches 162. `COMMODITY_ALIASES`
+    maps the app's crop names onto the real ones, each verified against the
+    live API.
+
+The default API key is the sample key from data.gov.in's own docs, which
+caps responses at 10 records. Register a free personal key and set
+`DATA_GOV_API_KEY` to lift that.
 
 ## Run it
 

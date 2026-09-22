@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.agent.graph import init_agent, shutdown_agent
-from app.api import advisory, auth, disease, environment, farms, notifications, recommend, schemes, soil
+from app.api import (
+    advisory, auth, crop, disease, environment, farms, market, notifications,
+    recommend, schemes, soil,
+)
 from app.core.config import get_settings
 from app.db.database import init_db
 from app.workers.daily_advisory import run_daily_advisory_for_all_farms
@@ -85,3 +88,5 @@ app.include_router(recommend.router, prefix=settings.api_v1_prefix)
 app.include_router(advisory.router, prefix=settings.api_v1_prefix)
 app.include_router(schemes.router, prefix=settings.api_v1_prefix)
 app.include_router(notifications.router, prefix=settings.api_v1_prefix)
+app.include_router(crop.router, prefix=settings.api_v1_prefix)
+app.include_router(market.router, prefix=settings.api_v1_prefix)

@@ -38,9 +38,22 @@ class Settings(BaseSettings):
     # Results are cached hard (see connectors/soilgrids.py) because of that limit.
     soilgrids_url: str = "https://rest.isric.org/soilgrids/v2.0/properties/query"
 
+    # Sentinel-2 NDVI via the AWS Open Data mirror + Earth Search STAC —
+    # free, and notably **no account or API key**, unlike the Copernicus Data
+    # Space route the plan sketches. See connectors/sentinel.py.
+    stac_search_url: str = "https://earth-search.aws.element84.com/v1/search"
+
+    # data.gov.in (Agmarknet mandi prices). The default below is the sample
+    # key published in data.gov.in's own API docs — shared by everyone using
+    # those docs and revocable, so register a free personal key and set
+    # DATA_GOV_API_KEY in .env for anything beyond a demo.
+    data_gov_api_key: str = "579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b"
+
     # Cache TTLs, in seconds.
     weather_cache_ttl: int = 3 * 60 * 60      # 3h, matches the plan's connector table
     soil_cache_ttl: int = 30 * 24 * 60 * 60   # 30 days — SoilGrids is a static raster
+    ndvi_cache_ttl: int = 5 * 24 * 60 * 60    # 5 days — one Sentinel-2 revisit cycle
+    market_cache_ttl: int = 12 * 60 * 60      # 12h — Agmarknet publishes daily
 
     # Groq — the one paid-capable service in this file, but has a free tier.
     # The advisory agent (Phase 4, app/agent/) needs an LLM for every node;
