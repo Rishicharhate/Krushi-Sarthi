@@ -675,16 +675,41 @@ class AdvisoryChatNotifier extends StateNotifier<AdvisoryChatState> {
   void reset() => state = const AdvisoryChatState();
 }
 
-/// Government schemes.
+/// Government schemes — real mode calls the backend's real corpus (Phase 5
+/// "Scheme RAG", see backend/app/rag/); demo mode uses MockData.
 final governmentSchemesProvider = FutureProvider<List<GovernmentScheme>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 500));
-  return MockData.governmentSchemes;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return MockData.governmentSchemes;
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(ApiConstants.schemes);
+  return (response.data ?? [])
+      .map((e) => GovernmentScheme.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
 
 /// Scheme search & filter state.
 final schemeSearchProvider = StateProvider<String>((ref) => '');
 final schemeCategoryProvider = StateProvider<String>((ref) => 'All');
 final schemeStateProvider = StateProvider<String>((ref) => 'All States');
+
+/// Semantic search results — real mode with a non-empty query only. Matches
+/// on meaning, not just keyword overlap (e.g. "money if rain ruins my crop"
+/// surfaces crop insurance with no shared words) — see backend/app/rag/.
+final schemeSemanticResultsProvider = FutureProvider<List<GovernmentScheme>?>((ref) async {
+  if (ref.watch(demoModeProvider)) return null;
+  final query = ref.watch(schemeSearchProvider).trim();
+  if (query.isEmpty) return null;
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(
+    ApiConstants.schemeSearch,
+    queryParameters: {'q': query, 'top_k': 10},
+  );
+  return (response.data ?? [])
+      .map((e) => GovernmentScheme.fromJson(e as Map<String, dynamic>))
+      .toList();
+});
 
 /// Bookmarked schemes.
 final bookmarkedSchemesProvider = StateNotifierProvider<BookmarkedSchemesNotifier, Set<String>>((ref) {
@@ -710,12 +735,23 @@ class BookmarkedSchemesNotifier extends StateNotifier<Set<String>> {
   bool isBookmarked(String schemeId) => state.contains(schemeId);
 }
 
-/// Filtered schemes.
+/// Filtered schemes: real mode with a non-empty search query uses the
+/// semantic search endpoint; everything else uses local category/substring
+/// filtering over the full list (same as before Phase 5).
 final filteredSchemesProvider = Provider<AsyncValue<List<GovernmentScheme>>>((ref) {
-  final schemesAsync = ref.watch(governmentSchemesProvider);
   final search = ref.watch(schemeSearchProvider).toLowerCase();
   final category = ref.watch(schemeCategoryProvider);
 
+  if (!ref.watch(demoModeProvider) && search.trim().isNotEmpty) {
+    final semanticAsync = ref.watch(schemeSemanticResultsProvider);
+    return semanticAsync.whenData((results) {
+      final schemes = results ?? [];
+      if (category == 'All') return schemes;
+      return schemes.where((s) => s.category == category).toList();
+    });
+  }
+
+  final schemesAsync = ref.watch(governmentSchemesProvider);
   return schemesAsync.whenData((schemes) {
     var filtered = schemes;
     if (category != 'All') {
@@ -732,11 +768,43 @@ final filteredSchemesProvider = Provider<AsyncValue<List<GovernmentScheme>>>((re
   });
 });
 
-/// Notifications.
+/// Notifications — real mode calls the backend; demo mode uses MockData.
+/// Real notifications are written by the Phase 5 daily automation worker
+/// (backend/app/workers/daily_advisory.py) — the 05:30 IST cron job, or the
+/// manual trigger below (for demos/testing without waiting for the schedule).
 final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async {
-  await Future.delayed(const Duration(milliseconds: 400));
-  return MockData.notifications;
+  if (ref.watch(demoModeProvider)) {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return MockData.notifications;
+  }
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(ApiConstants.notifications);
+  return (response.data ?? [])
+      .map((e) => NotificationItem.fromJson(e as Map<String, dynamic>))
+      .toList();
 });
+
+/// Manually runs the daily-advisory check right now (real mode only) —
+/// POST /api/notifications/run-daily — instead of waiting for the scheduled
+/// 05:30 IST job. Lets the automation actually be demonstrated on demand.
+final notificationsRepositoryProvider = Provider<NotificationsRepository>((ref) {
+  return NotificationsRepository(ref);
+});
+
+class NotificationsRepository {
+  final Ref _ref;
+  NotificationsRepository(this._ref);
+
+  Future<void> runDailyCheckNow() async {
+    if (_ref.read(demoModeProvider)) return;
+    final api = await _ref.read(apiClientProvider.future);
+    await api.post<void>(
+      ApiConstants.notificationsRunDaily,
+      options: Options(receiveTimeout: const Duration(seconds: 45)),
+    );
+    _ref.invalidate(notificationsProvider);
+  }
+}
 
 final selectedNotifCategoryProvider = StateProvider<String>((ref) => 'All');
 

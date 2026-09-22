@@ -7,17 +7,53 @@ import '../../core/utils/date_formatter.dart';
 import '../../core/widgets/async_value_widget.dart';
 
 /// Notifications screen with category filters.
-class NotificationsScreen extends ConsumerWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  bool _running = false;
+
+  Future<void> _runDailyCheckNow() async {
+    setState(() => _running = true);
+    try {
+      await ref.read(notificationsRepositoryProvider).runDailyCheckNow();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not run the daily check. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final filteredAsync = ref.watch(filteredNotificationsProvider);
     final selectedCategory = ref.watch(selectedNotifCategoryProvider);
+    final isDemoMode = ref.watch(demoModeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        actions: [
+          if (!isDemoMode)
+            IconButton(
+              tooltip: 'Run today\'s check now',
+              icon: _running
+                  ? const SizedBox(
+                      width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh_rounded),
+              onPressed: _running ? null : _runDailyCheckNow,
+            ),
+        ],
+      ),
       body: Column(
         children: [
           // ── Category Tabs ──

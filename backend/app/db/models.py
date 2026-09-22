@@ -80,6 +80,25 @@ class DiseaseScan(Base):
     scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class Notification(Base):
+    """A notification written by the daily automation worker
+    (app/workers/daily_advisory.py) — either the 05:30 IST cron job or its
+    manual trigger (POST /api/notifications/run-daily, for demos/testing).
+    This is what makes the app "automated for farmers" per
+    docs/IMPLEMENTATION_PLAN.md §5, rather than real data on request."""
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+
+    title: Mapped[str] = mapped_column(String(160))
+    message: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(60))
+    icon: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    is_read: Mapped[bool] = mapped_column(default=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class ApiCache(Base):
     """Generic TTL cache for external API responses (Open-Meteo, SoilGrids, ...).
 

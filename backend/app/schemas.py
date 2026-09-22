@@ -149,6 +149,34 @@ class AdvisoryAskOut(BaseModel):
     sources: list[AdvisorySourceOut]
 
 
+# ── Government schemes ── (Phase 5, mirrors
+# lib/shared/models/government_scheme.dart) — corpus + semantic search in
+# app/rag/.
+class GovernmentSchemeOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    eligibility: str
+    benefits: str
+    documents: list[str]
+    application_url: str | None = None
+    application_process: str | None = None
+    category: str = "General"
+    state: str | None = None
+    updated_at: datetime
+
+
+# ── Notifications ── (Phase 5, mirrors lib/shared/models/notification_item.dart)
+class NotificationItemOut(BaseModel):
+    id: str
+    title: str
+    message: str
+    category: str
+    timestamp: datetime
+    is_read: bool = False
+    icon: str | None = None
+
+
 # ── Disease detection ── (mirrors lib/shared/models/disease_result.dart)
 class DiseaseDetectionOut(BaseModel):
     disease: str

@@ -41,10 +41,12 @@ class ApiConstants {
 
   // ── Government Schemes ──
   static const String schemes = '/api/schemes';
+  static const String schemeSearch = '/api/schemes/search';
   static String schemeDetail(String id) => '/api/schemes/$id';
 
   // ── Notifications ──
   static const String notifications = '/api/notifications';
+  static const String notificationsRunDaily = '/api/notifications/run-daily';
 
   // ── Profile ──
   static const String profile = '/api/profile';

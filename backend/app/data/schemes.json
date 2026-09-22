@@ -1,0 +1,121 @@
+[
+  {
+    "id": "pm-kisan",
+    "name": "PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)",
+    "description": "A central government direct income support scheme for landholding farmer families, launched in February 2019. It provides a fixed cash transfer straight to the farmer's bank account, with no requirement to spend it on any particular input.",
+    "eligibility": "Landholding farmer families (subject to a state/UT land-records database). Not available to institutional landholders, or to farmer families where any member is a serving/retired government employee above certain pay grades, an income-tax payer in the last assessment year, or a professional (doctor, engineer, lawyer, CA, architect) practicing and registered with a professional body. Tenant farmers who do not hold land in their own name are not covered.",
+    "benefits": "₹6,000 per year, paid in three equal instalments of ₹2,000 every four months, transferred directly to the farmer's bank account (subject to change — confirm the current instalment amount on the official portal before relying on it).",
+    "documents": [
+      "Aadhaar card",
+      "Land ownership records (7/12 extract or equivalent)",
+      "Bank account passbook (Aadhaar-linked)"
+    ],
+    "application_url": "https://pmkisan.gov.in/",
+    "application_process": "Register via the PM-KISAN portal, through your state's Common Service Centre (CSC), or through your local Patwari/Revenue officer, with self-certification of landholding and Aadhaar-linked bank details.",
+    "category": "Financial Assistance",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "pmfby",
+    "name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "description": "The central government's crop insurance scheme, launched in February 2016, covering yield losses from natural causes (drought, flood, pest and disease attack, hailstorm, landslide, cyclone) and post-harvest losses for up to two weeks after harvest for crops left in the field to dry. Enrollment has been voluntary for all farmers (not just loanee farmers) since 2020.",
+    "eligibility": "All farmers, including sharecroppers and tenant farmers, growing notified crops in notified areas during the notified season, with an insurable interest in the crop.",
+    "benefits": "Farmers pay a low, fixed premium share — commonly cited as 2% of sum insured for Kharif food and oilseed crops, 1.5% for Rabi food and oilseed crops, and 5% for annual commercial/horticultural crops — with the government subsidizing the remainder of the actuarial premium. Confirm current premium rates and notified crops for your district on the official portal, since these are revised by state.",
+    "documents": [
+      "Aadhaar card",
+      "Land ownership or tenancy/cultivation certificate",
+      "Bank account details",
+      "Sowing declaration"
+    ],
+    "application_url": "https://pmfby.gov.in/",
+    "application_process": "Apply online at the PMFBY portal, through your bank if you have a crop loan (Kisan Credit Card holders can be enrolled automatically unless they opt out), or via a Common Service Centre before the cut-off date for your crop and season.",
+    "category": "Insurance",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "kcc",
+    "name": "Kisan Credit Card (KCC)",
+    "description": "A credit scheme introduced in 1998 by Indian public sector banks to give farmers timely access to short-term credit for crop production and other needs, in a single simplified product rather than separate loans for each purpose. Coverage was extended in 2019 to include fisheries and animal husbandry.",
+    "eligibility": "Farmers who own or cultivate land (including tenant farmers, oral lessees and sharecroppers in many states), and — since 2019 — fishers and livestock/dairy farmers, are eligible to apply through a participating bank.",
+    "benefits": "Provides both cash-credit (working capital) and term-credit (equipment, irrigation, livestock purchase) in one account. Loans up to ₹3 lakh are commonly eligible for an interest subvention (typically 2%) plus an additional prompt-repayment incentive (typically 3%) for farmers who repay on time, which can bring the effective interest rate to around 4% per year — confirm the current subvention rates with your bank, as they are revised periodically. KCC holders also get personal accident insurance cover. Cards are valid for 5 years, renewable.",
+    "documents": [
+      "Aadhaar card",
+      "Land ownership or cultivation records",
+      "Passport-size photographs",
+      "Bank KYC documents"
+    ],
+    "application_url": "https://www.myscheme.gov.in/schemes/kcc",
+    "application_process": "Apply at any participating public or private sector bank, Regional Rural Bank, or state cooperative bank branch, or via the bank's net-banking/PM-KISAN portal (many banks now offer a simplified digital KCC application for existing PM-KISAN beneficiaries).",
+    "category": "Financial Assistance",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "soil-health-card",
+    "name": "Soil Health Card Scheme",
+    "description": "A scheme launched in February 2015 under which the government tests a farmer's soil and issues a card with crop-wise recommendations for the nutrients and fertilizers that specific field actually needs, instead of blanket fertilizer use. The goal is balanced, soil-test-based fertilizer use rather than farmers guessing or over-applying.",
+    "eligibility": "Open to all farmers; soil samples are collected on a cycle (typically every 2-3 years) covering agricultural land across the country in coordination with state agriculture departments.",
+    "benefits": "A free soil health card showing nutrient status (nitrogen, phosphorus, potassium and secondary/micronutrients) and specific fertilizer and soil-amendment recommendations for the crops grown on that land — this is the real lab-tested alternative to the estimated N/P/K values this app shows from SoilGrids.",
+    "documents": [
+      "Land details/survey number",
+      "Farmer's name and contact details for card delivery"
+    ],
+    "application_url": "https://soilhealth.dac.gov.in/",
+    "application_process": "Soil samples are collected by state agriculture department staff during scheduled sampling drives; a farmer can also request sampling through their nearest Krishi Vigyan Kendra (KVK) or block agriculture office. Cards are issued after laboratory analysis.",
+    "category": "Fertilizer",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "e-nam",
+    "name": "e-NAM (National Agriculture Market)",
+    "description": "An online trading platform launched in April 2016 that networks existing physical mandis (APMC markets) so farmers can sell produce to buyers across the country, not just locally, through transparent online bidding.",
+    "eligibility": "Any farmer bringing produce to a mandi integrated with e-NAM; no special eligibility beyond registering on the platform.",
+    "benefits": "Farmers can trade directly through the eNAM mobile app or through registered commission agents, get competitive price discovery via online bidding across a wider buyer base, and receive cleared online payment on the same day produce is weighed and lifted — reducing dependence on a single local middleman.",
+    "documents": [
+      "Aadhaar card",
+      "Bank account details",
+      "Mandi gate-entry/produce details at the time of sale"
+    ],
+    "application_url": "https://www.enam.gov.in/",
+    "application_process": "Register free on the eNAM mobile app or web portal (available in multiple Indian languages) with your mandi and bank details, then list produce for sale or bid through the platform at an integrated mandi.",
+    "category": "Farmer Welfare",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "pmksy",
+    "name": "Pradhan Mantri Krishi Sinchayee Yojana (PMKSY)",
+    "description": "A national irrigation mission approved in 2015 with the tagline \"more crop per drop\", focused on expanding assured irrigation, improving on-farm water-use efficiency, and promoting precision irrigation (drip/sprinkler) to reduce water wastage.",
+    "eligibility": "Farmers and farmer groups in areas covered by state PMKSY implementation plans; micro-irrigation (drip/sprinkler) subsidy components are generally open to individual farmers applying through the state horticulture/agriculture department.",
+    "benefits": "Subsidized micro-irrigation equipment (drip and sprinkler systems) to improve water-use efficiency, plus watershed development and last-mile irrigation infrastructure funding at the state level — exact subsidy percentages are set and revised by each state, so check your state agriculture/horticulture department for the current rate.",
+    "documents": [
+      "Aadhaar card",
+      "Land ownership records",
+      "Bank account details",
+      "Water source details for the field"
+    ],
+    "application_url": "https://pmksy.gov.in/",
+    "application_process": "Apply through your state's Department of Agriculture or Horticulture (many states now offer an online micro-irrigation subsidy portal), or through your nearest Krishi Vigyan Kendra for guidance on the current state scheme component.",
+    "category": "Irrigation",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  },
+  {
+    "id": "rkvy",
+    "name": "Rashtriya Krishi Vikas Yojana (RKVY)",
+    "description": "A central scheme (originally launched 2007, restructured since) that gives states funding and flexibility to design their own agriculture and allied-sector investment plans, aimed at raising overall agricultural growth. It funds state-designed projects rather than paying individual farmers directly, so its benefit to a specific farmer depends on what project your state has funded locally.",
+    "eligibility": "Not applied for directly by individual farmers — states design RKVY-funded projects (which can include input subsidies, infrastructure, or farmer-facing schemes) and farmers become eligible based on that specific state project's own criteria.",
+    "benefits": "Varies by state and by the specific project funded (for example: farm mechanization subsidies, horticulture infrastructure, or value-addition units) — check your state agriculture department for RKVY-funded programs currently open in your district.",
+    "documents": [
+      "Depends on the specific state project funded under RKVY"
+    ],
+    "application_url": null,
+    "application_process": "Individual farmers should check with their state Department of Agriculture for RKVY-funded programs currently open locally, since RKVY itself is a state-to-state funding mechanism, not a single farmer-facing application.",
+    "category": "Farmer Welfare",
+    "state": null,
+    "updated_at": "2026-09-22T00:00:00Z"
+  }
+]

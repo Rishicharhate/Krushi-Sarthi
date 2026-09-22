@@ -154,6 +154,67 @@ and is the thing worth putting in the report.
   LLM correctly declined to guess a dosage rather than confidently inventing
   one.
 
+## Phase 5 — Automation + Scheme RAG: done (2 of 4 pieces)
+
+Scoped down deliberately: daily automation and scheme RAG are buildable
+end-to-end with no new accounts or API keys. FCM push notifications need a
+Firebase project (real account setup only the project owner can do) and
+voice (IndicConformer ASR + IndicTrans2) is large, likely slow on a CPU-only
+dev machine, and needs Flutter mic/audio wiring — both deferred to their own
+pass rather than bundled in.
+
+### Daily automation worker
+
+- `backend/app/workers/daily_advisory.py`, scheduled via APScheduler at
+  05:30 IST (`app/main.py`) across every farm with coordinates set. Reuses
+  the *same* specialist tools as the Phase 4 agent
+  (`app/agent/tools.py` — weather/irrigation, soil, recent disease scans),
+  so the daily check and the interactive chat are never out of sync about
+  what "real data" means for a farm.
+- The LLM is explicitly told that an empty result is the normal, expected
+  answer most days — it only writes a notification when a finding crosses a
+  real threshold, not just to say something. Verified with real data: on a
+  live test farm it correctly wrote exactly one notification (an irrigation
+  deficit) rather than padding to 3 items.
+- New `Notification` DB table; `GET /api/notifications` is now real.
+- **`POST /api/notifications/run-daily`** manually runs the check for the
+  caller's own farms right now — this exists specifically so the automation
+  is demonstrable on demand instead of only at 5:30 tomorrow morning. Wired
+  into the Flutter notifications screen as a refresh icon in real mode.
+- Still missing vs. the plan: FCM push (needs Firebase project), NDVI/market
+  findings (connectors don't exist), voice output of the advisory.
+
+### Scheme RAG
+
+- `backend/app/rag/`: 7 real central Government of India schemes
+  (PM-KISAN, PMFBY crop insurance, Kisan Credit Card, Soil Health Card,
+  e-NAM, PMKSY irrigation, RKVY), compiled from Wikipedia since the official
+  portals (pmkisan.gov.in, pmfby.gov.in, myscheme.gov.in) are JS-rendered
+  SPAs that don't serve fetchable static content — see
+  `backend/app/data/SCHEMES_SOURCES.md` for exact sources and the honesty
+  notes on which figures may drift (premium rates, subsidy percentages).
+  `application_url` on every scheme still points at the real official
+  portal, not Wikipedia.
+- Local embeddings (`sentence-transformers/all-MiniLM-L6-v2`, free, no API
+  key, CPU) — no vector database; brute-force cosine similarity over 7
+  precomputed vectors is more than fast enough at this corpus size.
+- `GET /api/schemes` (real list, replaces demo), `GET /api/schemes/{id}`
+  (detail), **`GET /api/schemes/search?q=...`** (semantic search).
+- The semantic search is genuinely doing meaning-based retrieval, not
+  keyword matching — verified with zero-keyword-overlap queries like "money
+  if rain destroys my harvest" correctly surfacing PMFBY (crop insurance)
+  in the top 3 despite sharing no words with its description. It isn't
+  always rank-1 (small local model, tiny corpus) — reported honestly rather
+  than oversold.
+- Flutter: search bar on the schemes screen now calls the real semantic
+  endpoint in real mode instead of local substring filtering, with no UI
+  changes needed (`filteredSchemesProvider` just switched what it watches).
+- This is a small hand-curated corpus, not the "collect scheme PDFs" scraped
+  pipeline the plan describes — each scheme is one retrieval chunk since
+  they're already short, atomic profiles. Scaling to more schemes or real
+  PDF guidelines is additive (more entries in `schemes.json`), the
+  embed/retrieve code doesn't change.
+
 ## How to actually see real data
 
 1. `cd backend && python -m venv .venv && ...\.venv\Scripts\activate && pip install -r requirements.txt`
@@ -187,7 +248,9 @@ changes.
 - Phase 4 remainder: NDVI/market specialists once their connectors exist;
   multi-turn follow-up questions from the Flutter chat (the checkpointer
   already persists state per farm, just not exposed yet); LangSmith tracing.
-- Phase 5: daily automation worker (cron, 05:30 IST), FCM push notifications,
-  voice (IndicConformer ASR + IndicTrans2), scheme RAG. Nothing here is
-  "automated for farmers" yet — Phase 4 is real advice on request, not yet
-  pushed without being asked.
+- Phase 5 remainder: FCM push notifications (needs a Firebase project —
+  real account setup, can't be automated) and voice (IndicConformer ASR +
+  IndicTrans2 — large models, needs Flutter mic/audio wiring, worth its own
+  pass rather than bundling in). The daily worker and scheme RAG are done.
+- Phase 6: hardening + report — offline-first verification, rate limiting,
+  cost caps on any paid fallback, evaluation writeup.

@@ -1,12 +1,12 @@
 # KrushiSarthi backend
 
-FastAPI service backing the Flutter app. Every endpoint implemented so far is
-free to run: SQLite (a file, no server), two external APIs that need no key —
-[Open-Meteo](https://open-meteo.com/) (weather, ET₀, soil moisture) and
-[SoilGrids v2](https://rest.isric.org/) (ISRIC — global soil baseline) — and a
-local, free (Apache 2.0) disease-classification model that runs on CPU, no
-API key or GPU required. See `docs/IMPLEMENTATION_PLAN.md` at the repo root
-for the full roadmap; this covers Phase 0, the start of Phase 1, and Phase 2.
+FastAPI service backing the Flutter app. Free to run except for one piece:
+the advisory agent (Phase 4) needs a Groq API key (free tier). Everything
+else — SQLite, [Open-Meteo](https://open-meteo.com/), [SoilGrids v2](https://rest.isric.org/),
+the local disease-classification model, the local tabular models, and local
+scheme-search embeddings — needs zero API keys. See `docs/IMPLEMENTATION_PLAN.md`
+at the repo root for the full roadmap and `docs/STATUS.md` for a
+phase-by-phase account of what was actually built vs. what the plan sketched.
 
 ## What's real right now
 
@@ -18,12 +18,19 @@ for the full roadmap; this covers Phase 0, the start of Phase 1, and Phase 2.
 | `GET /api/environment/history` | Open-Meteo archive | daily temperature/humidity, last N days |
 | `GET /api/soil/current` | SoilGrids + Open-Meteo | pH/texture baseline + live moisture; N/P/K are **estimates**, not lab values — see `app/agronomy/soil_status.py` |
 | `GET /api/soil/history` | Open-Meteo archive | moisture and temperature only; pH has no free daily source and is intentionally not exposed here |
-| `POST /api/disease/detect` | local MobileNetV2 cascade | quality gate → CNN → honest decline, see `app/ml/disease/`. VLM/paid-API cascade stages from the plan's §1.1 are not wired up (need API keys this deployment doesn't have) |
+| `POST /api/disease/detect` | local ViT cascade | quality gate → CNN → honest decline, see `app/ml/disease/` and "Disease detection model" below. VLM/paid-API cascade stages are not wired up (need API keys this deployment doesn't have) |
 | `GET /api/disease/history` | local DB | per-user scan history, newest first |
+| `POST /api/recommend/crop` | local RandomForest | trained on 2200 rows, 22 crops, 99.6% test accuracy — see `app/ml/tabular/` |
+| `POST /api/recommend/fertilizer` | local RandomForest | trained on 99 rows, 7 fertilizers — see `app/ml/tabular/` |
+| `POST /api/advisory/ask` | LangGraph agent (Groq LLM) | weather + soil + disease specialists, FAO-56 irrigation math, sourced answers — see `app/agent/`. **Needs `GROQ_API_KEY`** |
+| `GET /api/schemes`, `GET /api/schemes/{id}` | local corpus | 7 real central government schemes — see `app/data/` |
+| `GET /api/schemes/search` | local embeddings | semantic search, not keyword match — see `app/rag/` |
+| `GET /api/notifications` | local DB | written by the daily automation worker |
+| `POST /api/notifications/run-daily` | local DB + agent tools | manually runs today's check now, instead of waiting for the 05:30 IST cron — see `app/workers/daily_advisory.py` |
 
-Everything else in `ApiConstants` on the Flutter side (crop health/NDVI,
-schemes, notifications, profile) is still demo-mode-only — not implemented
-here yet. That's Phases 3–5 in the plan.
+Not yet implemented: crop health/NDVI (needs a free Copernicus Data Space
+signup), farmer profile sync, FCM push, voice. All demo-mode-only on the
+Flutter side for now.
 
 ## Run it
 
@@ -107,3 +114,43 @@ honest decline. Stages [2] (VLM second opinion) and [3] (paid API fallback,
 e.g. Kindwise crop.health) are not wired up; both need API keys/spend this
 deployment isn't configured with. Add them inside `run_cascade`'s
 `if is_confident` branch when ready.
+
+## Advisory agent (Phase 4)
+
+`POST /api/advisory/ask` is the only endpoint in this backend that needs a
+paid-capable API key — Groq, via `GROQ_API_KEY` in `.env` (free tier
+available at console.groq.com). Everything else needs zero keys.
+
+The graph (`app/agent/graph.py`) runs weather/soil/disease specialists in
+parallel (deterministic, no LLM — they just call `app/agent/tools.py`), then
+two LLM calls (synthesis, writer), then a deterministic keyword safety gate.
+NDVI and market-price specialists from the plan aren't included — those
+connectors don't exist. A SQLite checkpointer (`agent_checkpoints.db`,
+gitignored) persists conversation state per (user, farm).
+
+If `GROQ_MODEL` 404s, Groq's free-tier model lineup has moved on — list what's
+currently available:
+```bash
+.venv\Scripts\python -c "from groq import Groq; from app.core.config import get_settings; [print(m.id) for m in Groq(api_key=get_settings().groq_api_key).models.list().data]"
+```
+
+## Daily automation worker (Phase 5)
+
+`app/workers/daily_advisory.py` runs at 05:30 IST (APScheduler, wired in
+`app/main.py`) across every farm with coordinates set, reusing the same
+specialist tools the interactive agent uses. It only writes a notification
+when something crosses a real threshold — most days, nothing fires, on
+purpose. `POST /api/notifications/run-daily` runs it immediately for the
+caller's own farms, so the automation is demonstrable without waiting for
+the schedule.
+
+## Scheme RAG (Phase 5)
+
+`app/rag/` — 7 real central government schemes (`app/data/schemes.json`,
+sourced in `app/data/SCHEMES_SOURCES.md`), embedded locally with
+`sentence-transformers/all-MiniLM-L6-v2` (free, CPU, no API key). No vector
+database — brute-force cosine similarity over 7 vectors is fast enough.
+`GET /api/schemes/search?q=...` does genuine semantic retrieval: a query
+like "money if rain destroys my harvest" surfaces crop insurance (PMFBY)
+with zero shared keywords. It isn't always ranked #1 (small model, tiny
+corpus) — see `docs/STATUS.md` for the honest result, not an inflated one.
