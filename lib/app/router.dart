@@ -14,6 +14,7 @@ import '../features/crop_health/crop_map_screen.dart';
 import '../features/disease_detection/disease_detection_screen.dart';
 import '../features/disease_detection/disease_result_screen.dart';
 import '../features/disease_detection/disease_history_screen.dart';
+import '../features/advisory/advisory_chat_screen.dart';
 import '../features/recommendation/recommendation_hub_screen.dart';
 import '../features/recommendation/crop_recommendation_screen.dart';
 import '../features/recommendation/fertilizer_recommendation_screen.dart';
@@ -136,6 +137,10 @@ final appRouter = GoRouter(
           builder: (context, state) => const EnvironmentHistoryScreen(),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/advisory',
+      builder: (context, state) => const AdvisoryChatScreen(),
     ),
     GoRoute(
       path: '/recommend',

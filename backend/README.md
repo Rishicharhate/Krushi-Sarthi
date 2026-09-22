@@ -83,18 +83,23 @@ cheap to unit test — that's the first thing worth adding.
 
 ## Disease detection model
 
-`POST /api/disease/detect` downloads `Daksh159/plant-disease-mobilenetv2`
-(Apache 2.0, ~9 MB) from Hugging Face on first use and caches it under the
-`huggingface_hub` cache directory — no manual download step, no API key.
-CPU-only PyTorch wheels (see the `--extra-index-url` line in
-`requirements.txt`); no GPU required.
+`POST /api/disease/detect` downloads `asafe51/plantdoc-disease-classifier`
+from Hugging Face on first use and caches it under the `huggingface_hub`
+cache directory — no manual download step, no API key. CPU-only PyTorch
+wheels (see the `--extra-index-url` line in `requirements.txt`); no GPU
+required.
 
-That checkpoint's own README references a `class_names.json` that isn't
-actually in the repo, so the 38-class label order in `app/ml/disease/labels.py`
-is the standard PlantVillage alphabetical ordering, not something sourced
-from the model card — it was verified before being trusted (strict
-`state_dict` load + 5/5 correct top-1 predictions on labeled reference photos
-from a public PlantVillage mirror). See that file's docstring for details.
+**This model was picked by measurement, not by its model card.** On 215 real
+in-field photographs it scores 73.0% top-1 / 94.4% top-3. The
+PlantVillage-trained checkpoint originally shipped here scored 18.6% on the
+same photos despite excellent lab-test numbers — the domain-shift problem
+`docs/IMPLEMENTATION_PLAN.md` §1.1 warns about, measured rather than assumed.
+Several other candidates advertising 95–99%+ accuracy scored around 30%.
+
+Full comparison of 8 candidates, the confidence-threshold sweep behind
+`cascade.py`'s numbers, a data-leakage analysis and honest limitations:
+`notebooks/disease_field_eval.json`. If you swap the model, re-run that
+evaluation on field photos — lab accuracy will mislead you.
 
 The cascade (`app/ml/disease/cascade.py`) only implements stages [0], [1] and
 [4] of the plan's §1.1 confidence-gated pipeline — quality gate, local model,

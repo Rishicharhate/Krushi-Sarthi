@@ -460,6 +460,7 @@ class _QuickActionsGrid extends StatelessWidget {
     (icon: Icons.satellite_alt_rounded, label: 'Crop Health', color: AppColors.primaryGreen, route: '/crop-health'),
     (icon: Icons.psychology_rounded, label: 'Disease AI', color: AppColors.harvestGold, route: '/disease'),
     (icon: Icons.eco_rounded, label: 'Recommend', color: AppColors.primaryGreen, route: '/recommend'),
+    (icon: Icons.chat_rounded, label: 'Ask KrushiSarthi', color: AppColors.skyBlue, route: '/advisory'),
     (icon: Icons.account_balance_rounded, label: 'Schemes', color: AppColors.earthBrownLight, route: '/schemes'),
     (icon: Icons.notifications_rounded, label: 'Alerts', color: AppColors.statusAttention, route: '/notifications'),
   ];
@@ -487,7 +488,8 @@ class _QuickActionsGrid extends StatelessWidget {
             onTap: () {
               if (action.route == '/environment' ||
                   action.route == '/notifications' ||
-                  action.route == '/recommend') {
+                  action.route == '/recommend' ||
+                  action.route == '/advisory') {
                 context.push(action.route);
               } else {
                 context.go(action.route);

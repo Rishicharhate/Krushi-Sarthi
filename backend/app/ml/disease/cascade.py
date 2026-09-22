@@ -15,7 +15,22 @@ from app.ml.disease import loader
 from app.ml.disease.labels import DISEASE_INFO
 from app.ml.disease.quality import check as check_quality
 
-CONFIDENCE_THRESHOLD = 0.85
+# Calibrated by measurement on 215 real field photos, not guessed — see
+# backend/notebooks/disease_field_eval.json for the full sweep. The current
+# model is well-calibrated but *underconfident* (mean top-1 probability ~0.53
+# even when correct), so the 0.85 threshold the old PlantVillage checkpoint
+# used would decline 90% of real photos here.
+#
+#   conf / margin -> coverage / precision-when-answered
+#   0.30 / 0.10   ->   78.1%  /  82.7%
+#   0.40 / 0.20   ->   62.3%  /  88.8%   <- chosen
+#   0.50 / 0.20   ->   51.6%  /  91.0%
+#
+# 0.40/0.20 is chosen deliberately: a wrong diagnosis can send a farmer to
+# spray the wrong chemical, so precision is worth more than coverage here,
+# and declining is not a dead end — stage [4] still returns the nearest match
+# plus what to check (docs/IMPLEMENTATION_PLAN.md §1.1).
+CONFIDENCE_THRESHOLD = 0.40
 MARGIN_THRESHOLD = 0.20
 
 

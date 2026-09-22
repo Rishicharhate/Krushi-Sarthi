@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     weather_cache_ttl: int = 3 * 60 * 60      # 3h, matches the plan's connector table
     soil_cache_ttl: int = 30 * 24 * 60 * 60   # 30 days — SoilGrids is a static raster
 
+    # Groq — the one paid-capable service in this file, but has a free tier.
+    # The advisory agent (Phase 4, app/agent/) needs an LLM for every node;
+    # nothing else in this backend does. Get a key at console.groq.com and
+    # put it in backend/.env — never commit it.
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -129,6 +129,26 @@ class FertilizerRecommendationOut(BaseModel):
     alternatives: list[RecommendationAlternativeOut]
 
 
+# ── Advisory agent ── (Phase 4, mirrors lib/shared/models/advisory.dart) —
+# see app/agent/ for the LangGraph implementation.
+class AdvisoryAskIn(BaseModel):
+    farm_id: str
+    question: str
+
+
+class AdvisorySourceOut(BaseModel):
+    domain: str
+    summary: str
+    source: str
+
+
+class AdvisoryAskOut(BaseModel):
+    answer: str
+    needs_human: bool
+    safety_note: str | None = None
+    sources: list[AdvisorySourceOut]
+
+
 # ── Disease detection ── (mirrors lib/shared/models/disease_result.dart)
 class DiseaseDetectionOut(BaseModel):
     disease: str

@@ -42,32 +42,117 @@ different machine and hit the same "version solving failed" error, that's why.
 ## Phase 2 — Disease detection: done (cascade stages [0],[1],[4] only)
 
 - `POST /api/disease/detect` and `GET /api/disease/history` are real —
-  `backend/app/ml/disease/`: quality gate (blur/brightness/size) → local
-  MobileNetV2 CNN (`Daksh159/plant-disease-mobilenetv2`, Apache 2.0, free,
-  downloaded from Hugging Face on first use, CPU-only) → honest decline when
-  not confident (top-1 ≥ 85% AND margin over top-2 ≥ 20%, else "Uncertain —
-  possible X" with a retake/KVK recommendation instead of a bare guess).
+  `backend/app/ml/disease/`: quality gate (blur/brightness/size) → ViT
+  classifier (`asafe51/plantdoc-disease-classifier`, free, downloaded from
+  Hugging Face on first use, CPU-only) → honest decline when not confident
+  (top-1 ≥ 40% AND margin over top-2 ≥ 20%, else "Uncertain — possible X"
+  with a retake/KVK recommendation instead of a bare guess).
+
+### The model was chosen by measurement, not by model card
+
+Originally shipped `Daksh159/plant-disease-mobilenetv2` (PlantVillage-trained).
+It was then evaluated properly on **215 real in-field photographs** (PlantDoc
+test split) instead of the lab photos it was trained on, and it collapsed —
+exactly the domain shift `docs/IMPLEMENTATION_PLAN.md` §1.1 predicts. Eight
+candidates were measured on the identical test set:
+
+| Model | Trained on | top-1 | top-3 |
+|---|---|---|---|
+| **asafe51/plantdoc-disease-classifier** (ViT) | PlantDoc (field) | **73.0%** | **94.4%** |
+| aladinhabibi/vit-plantdoc | PlantDoc (field) | 43.7% | 78.1% |
+| kimcomehome/plantvillage-vit-leaf-disease | PlantVillage (lab) | 40.0% | 70.2% |
+| linkanjarad/mobilenet_v2 | PlantVillage (lab) | 32.6% | 55.3% |
+| plantdoctor/swin-tiny (*card claims 99.83%*) | PlantVillage (lab) | 31.6% | 58.6% |
+| AgUtkarsh007/efficientnet-b0-plantdoc | PlantDoc (field) | 24.2% | 35.8% |
+| ~~Daksh159/plant-disease-mobilenetv2~~ (was shipped) | PlantVillage (lab) | 18.6% | 41.4% |
+| A2H0H0R1/swin-tiny-plant-disease-new | PlantVillage (lab) | 3.7% | 4.7% |
+
+Training **domain** mattered far more than architecture or advertised
+accuracy. Several models advertising 95–99%+ score near 30% on real photos.
+
+The old model was actively dangerous at its old gate: it answered
+confidently on 51% of real photos and was **wrong about 3 times out of 4**
+when it did (23.6% precision). The current model answers 62.3% of the time
+at **88.8% precision**, and declines the rest.
+
+Thresholds were calibrated from a measured sweep, not guessed — full sweep,
+leakage analysis and limitations in `backend/notebooks/disease_field_eval.json`.
+That file is the honest lab-vs-field table Phase 2's exit criteria asked for,
+and is the thing worth putting in the report.
 - Stages [2] (VLM second opinion) and [3] (paid API fallback / Kindwise) from
   the plan's §1.1 cascade are **not** wired up — both need API keys/spend
   this deployment doesn't have configured. See `backend/README.md` →
   "Disease detection model" for the extension point.
-- The checkpoint's class-label order (38 PlantVillage classes) isn't sourced
-  from the model card — its own README references a `class_names.json` that
-  isn't actually in the HF repo. Used the standard PlantVillage alphabetical
-  ordering instead and verified it empirically (strict state_dict load +
-  5/5 correct predictions on labeled reference photos) before trusting it.
-  See `backend/app/ml/disease/labels.py`'s docstring.
+- Class labels now come straight from the model's own published `id2label`
+  (28 classes, 13 crops) — there is no class-order guessing left anywhere,
+  unlike the previous checkpoint whose ordering had to be reverse-engineered.
+- **Coverage gap worth stating in the report:** no public checkpoint tested
+  covers rice, wheat, cotton or sugarcane — four of India's biggest crops.
+  The model handles tomato, potato, corn, grape, bell pepper, soybean,
+  squash, apple, peach, cherry, strawberry, raspberry and blueberry.
 - Blur threshold in `quality.py` was calibrated against real photos, not
   guessed — an initial default rejected a legitimate low-texture PlantVillage
   photo as "too blurry"; recalibrated with wide margin after measuring
   Laplacian variance on 5 sharp photos vs. the same photos heavily blurred.
-- No eval set yet (100–200 real field photos, top-1/top-3/abstention-rate
-  table) — deferred; the plan's honest lab-vs-field accuracy-gap writeup for
-  the report still needs that pass.
+- Eval set: **done** — 215 real field photos, with top-1/top-3/coverage/
+  abstention measured for 8 candidate models. See the table above and
+  `backend/notebooks/disease_field_eval.json`.
 - Flutter: `diseaseDetectionProvider`/`diseaseHistoryProvider` in
   `lib/app/providers.dart` now call the real endpoints when demo mode is off,
   using the existing `ApiClient.uploadFile` multipart helper; demo mode is
   unchanged.
+
+## Phase 3 — Tabular models: done
+
+- Two `RandomForestClassifier` models trained from scratch on standard public
+  datasets (`backend/app/ml/tabular/train.py`, see `notebooks/data/SOURCES.md`
+  for provenance), each with a stratified train/test split, 5-fold CV,
+  confusion matrix and feature importances saved for the report:
+  - **Crop recommendation** — 2200 rows, 22 crops, 99.4% ±0.5% CV / 99.6% test
+    accuracy. `POST /api/recommend/crop`.
+  - **Fertilizer recommendation** — 99 rows, 7 fertilizers, 93.8% ±6.9% CV /
+    100% test accuracy (small dataset, high CV variance — documented, not
+    overstated). `POST /api/recommend/fertilizer`.
+- Full metrics: `backend/notebooks/{crop_rec,fertilizer_rec}_report.json`.
+- Flutter: new `lib/features/recommendation/` screens (two input forms +
+  result cards), reachable from the dashboard's Quick Actions, wired to demo
+  mode like every other screen.
+- No pre-built UI existed for this feature (unlike disease detection) — both
+  the models and the screens were built this phase.
+
+## Phase 4 — The agent: done, scoped to 3 real specialists
+
+- LangGraph agent (`backend/app/agent/`) behind `POST /api/advisory/ask` —
+  ask a free-text question, get a sourced answer grounded in the farm's real
+  data. Flutter: `lib/features/advisory/` chat screen ("Ask KrushiSarthi" on
+  the dashboard).
+- Graph: `weather` + `soil` + `disease` specialists run in parallel
+  (deterministic — they call connectors/DB, no LLM) → `synthesis` → `writer`
+  (the only 2 LLM calls per question) → deterministic `safety_gate` (keyword
+  check for dosage/pesticide language, not an LLM call) → end. Every answer
+  carries its `sources` (which tool, which value).
+- **NDVI and market-price specialists are not built** — those connectors
+  don't exist yet (Copernicus signup, Agmarknet), so the plan's full 5-domain
+  graph is not implemented. Adding them later only needs new nodes in
+  `agent/nodes.py` plus new `FarmState` fields — nothing else changes.
+- New pure function `backend/app/agronomy/water_balance.py` (FAO-56
+  irrigation math, ET0 × Kc − effective rainfall) — built this phase because
+  the flagship question ("should I irrigate this week?") needs real
+  arithmetic behind it, not an LLM guess. Not yet exposed as its own
+  endpoint; only the agent's weather specialist calls it today.
+- LLM: Groq (`openai/gpt-oss-120b`), via `GROQ_API_KEY` — the one required
+  API key in this whole backend. My first default model guess
+  (`llama-3.3-70b-versatile`) 404'd; Groq's free-tier lineup had moved on
+  since my training data, corrected against the live `/models` list.
+- Checkpointer: SQLite (`agent_checkpoints.db`, gitignored), not the plan's
+  suggested Postgres — matches this project's zero-infrastructure pattern.
+  Conversation state persists per (user, farm) but multi-turn follow-up isn't
+  exposed from the Flutter side yet (each question is a fresh ask).
+- No LangSmith tracing wired up (optional, env-var-only if added later).
+- Verified end-to-end with real data via curl before touching the UI,
+  including a safety-gate trigger on a pesticide-dosage question, where the
+  LLM correctly declined to guess a dosage rather than confidently inventing
+  one.
 
 ## How to actually see real data
 
@@ -93,12 +178,16 @@ changes.
 ## Next up (not started)
 
 - Phase 1 remainder: NDVI via Copernicus (needs the user to create a free
-  Copernicus Data Space account — can't be automated) and the FAO-56
-  irrigation water-balance calculation (`backend/app/agronomy/water_balance.py`
-  doesn't exist yet, only `soil_status.py`).
-- Phase 2 remainder: the eval set (100–200 real field photos, honest
-  top-1/top-3/abstention table for the report) and, if useful, cascade
-  stages [2]/[3] (VLM second opinion, paid API fallback) once API keys exist.
-- Phase 3: the two trained tabular models (crop/fertilizer recommendation).
-- Phase 4–5: the LangGraph agent and daily automation — nothing here is
-  "automated for farmers" yet, it's real data on request.
+  Copernicus Data Space account — can't be automated).
+- Phase 2 remainder: cascade stages [2]/[3] (VLM second opinion, paid API
+  fallback) once API keys exist — these would lift the ~27% of field photos
+  the local model currently gets wrong. Optionally, fine-tuning on the
+  PlantDoc *train* split would both raise accuracy and remove the residual
+  (small) data-leakage uncertainty noted in `disease_field_eval.json`.
+- Phase 4 remainder: NDVI/market specialists once their connectors exist;
+  multi-turn follow-up questions from the Flutter chat (the checkpointer
+  already persists state per farm, just not exposed yet); LangSmith tracing.
+- Phase 5: daily automation worker (cron, 05:30 IST), FCM push notifications,
+  voice (IndicConformer ASR + IndicTrans2), scheme RAG. Nothing here is
+  "automated for farmers" yet — Phase 4 is real advice on request, not yet
+  pushed without being asked.

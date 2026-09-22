@@ -1,0 +1,161 @@
+{
+  "what_this_is": "Honest field-accuracy evaluation of candidate plant-disease models, measured on 215 real in-field photographs from the PlantDoc TEST split (NOT PlantVillage lab photos). Phase 2 exit criteria, docs/IMPLEMENTATION_PLAN.md 1.1.",
+  "test_set": {
+    "source": "https://github.com/pratikkayal/PlantDoc-Dataset test split",
+    "n_images": 215,
+    "n_classes": 27,
+    "why": "PlantVillage is 54k lab photos on plain backgrounds. Models trained on it report ~99% accuracy but collapse on real farmer photos (soil, other leaves, shadow, blur). PlantDoc is real in-field imagery, so it measures what actually matters.",
+    "sampling": "up to 10 images per class, taken from the official test split"
+  },
+  "results_top1_top3_on_field_photos": [
+    {
+      "model": "asafe51/plantdoc-disease-classifier",
+      "arch": "ViT",
+      "trained_on": "PlantDoc (field)",
+      "top1": 73.0,
+      "top3": 94.4,
+      "SELECTED": true
+    },
+    {
+      "model": "aladinhabibi/vit-plantdoc",
+      "arch": "ViT (142 cls)",
+      "trained_on": "PlantDoc (field)",
+      "top1": 43.7,
+      "top3": 78.1
+    },
+    {
+      "model": "kimcomehome/plantvillage-vit-leaf-disease",
+      "arch": "ViT",
+      "trained_on": "PlantVillage (lab)",
+      "top1": 40.0,
+      "top3": 70.2
+    },
+    {
+      "model": "linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification",
+      "arch": "MobileNetV2",
+      "trained_on": "PlantVillage (lab)",
+      "top1": 32.6,
+      "top3": 55.3
+    },
+    {
+      "model": "plantdoctor/swin-tiny-patch4-window7-224-plant-doctor",
+      "arch": "Swin-T",
+      "trained_on": "PlantVillage (lab)",
+      "top1": 31.6,
+      "top3": 58.6,
+      "note": "model card advertises 99.83% accuracy -- on its own lab-photo eval split"
+    },
+    {
+      "model": "AgUtkarsh007/efficientnet-b0-plantdoc",
+      "arch": "EfficientNet-B0",
+      "trained_on": "PlantDoc (field)",
+      "top1": 24.2,
+      "top3": 35.8
+    },
+    {
+      "model": "Daksh159/plant-disease-mobilenetv2",
+      "arch": "MobileNetV2",
+      "trained_on": "PlantVillage (lab)",
+      "top1": 18.6,
+      "top3": 41.4,
+      "note": "PREVIOUSLY SHIPPED -- replaced"
+    },
+    {
+      "model": "A2H0H0R1/swin-tiny-patch4-window7-224-plant-disease-new",
+      "arch": "Swin-T",
+      "trained_on": "PlantVillage (lab)",
+      "top1": 3.7,
+      "top3": 4.7
+    }
+  ],
+  "headline": "The lab-vs-field gap is the entire story: every PlantVillage-trained model lands between 3.7% and 40% top-1 on real field photos despite advertising 95-99%+ on lab test splits. Training domain mattered far more than architecture or model-card claims.",
+  "selected_model_threshold_sweep": {
+    "note": "Confidence gate calibration for the selected model. 'precision' = accuracy on the images the cascade actually answers; the rest are honestly declined.",
+    "sweep": [
+      {
+        "conf": 0.3,
+        "margin": 0.0,
+        "coverage": 83.3,
+        "precision": 80.4
+      },
+      {
+        "conf": 0.3,
+        "margin": 0.1,
+        "coverage": 78.1,
+        "precision": 82.7
+      },
+      {
+        "conf": 0.3,
+        "margin": 0.2,
+        "coverage": 65.6,
+        "precision": 87.2
+      },
+      {
+        "conf": 0.4,
+        "margin": 0.1,
+        "coverage": 67.0,
+        "precision": 86.1
+      },
+      {
+        "conf": 0.4,
+        "margin": 0.2,
+        "coverage": 62.3,
+        "precision": 88.8,
+        "CHOSEN": true
+      },
+      {
+        "conf": 0.5,
+        "margin": 0.2,
+        "coverage": 51.6,
+        "precision": 91.0
+      },
+      {
+        "conf": 0.6,
+        "margin": 0.2,
+        "coverage": 37.7,
+        "precision": 95.1
+      },
+      {
+        "conf": 0.7,
+        "margin": 0.2,
+        "coverage": 27.9,
+        "precision": 96.7
+      },
+      {
+        "conf": 0.85,
+        "margin": 0.2,
+        "coverage": 10.2,
+        "precision": 100.0
+      }
+    ],
+    "chosen_operating_point": {
+      "conf": 0.4,
+      "margin": 0.2,
+      "coverage": 62.3,
+      "precision_when_answered": 88.8
+    }
+  },
+  "previous_model_at_its_old_gate": {
+    "model": "Daksh159/plant-disease-mobilenetv2",
+    "conf": 0.85,
+    "margin": 0.2,
+    "coverage": 51.2,
+    "precision_when_answered": 23.6,
+    "why_this_was_dangerous": "It answered confidently on half of all real photos and was wrong roughly 3 times out of 4 when it did."
+  },
+  "data_leakage_check": {
+    "concern": "The selected model was trained on PlantDoc and its model card is empty, so its train/test split cannot be verified from the Hub. If it had trained on this test split, the 73% would be inflated.",
+    "evidence_against_leakage": [
+      "Mean top-1 probability is only 0.534 overall and 0.598 even when correct; memorized training images typically produce near-1.0 confidence.",
+      "Only 1.9% of test images exceed p>0.95.",
+      "73% top-1 sits in the normal published range for PlantDoc benchmarks (~70%), not at the suspicious 95-100% a leaked split would produce."
+    ],
+    "residual_risk": "Cannot be fully eliminated without retraining from a known-clean split. If the report needs an airtight number, fine-tune on the PlantDoc TRAIN split and re-measure on TEST."
+  },
+  "honest_limitations": [
+    "215 images, 27 classes -- small enough that per-class figures are noisy; treat the headline top-1/top-3 as the reliable numbers.",
+    "PlantDoc itself is web-scraped, so some label noise exists.",
+    "The model covers 28 classes across 13 crops. Rice, wheat, cotton and sugarcane -- major Indian crops -- are NOT covered by any of these public checkpoints.",
+    "Field accuracy of 73% top-1 means roughly 1 in 4 raw predictions is wrong, which is exactly why the confidence gate and honest-decline stage exist."
+  ]
+}

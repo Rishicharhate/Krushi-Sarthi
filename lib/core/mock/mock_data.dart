@@ -7,6 +7,7 @@ import '../../shared/models/farm.dart';
 import '../../shared/models/farmer_profile.dart';
 import '../../shared/models/notification_item.dart';
 import '../../shared/models/recommendation.dart';
+import '../../shared/models/advisory.dart';
 
 /// Comprehensive realistic demo data for the final-year project presentation.
 /// All values match the spec document.
@@ -258,6 +259,28 @@ class MockData {
     alternatives: [
       RecommendationAlternative(label: '28-28', confidence: 8.0),
       RecommendationAlternative(label: '20-20', confidence: 2.5),
+    ],
+  );
+
+  // ── Advisory Agent Demo Answer ──
+  static const advisoryAnswer = AdvisoryAnswer(
+    answer:
+        'Yes, you should irrigate this week. Soil moisture is currently 22% (Low), and over the next '
+        '3 days your crop needs about 18mm of water while only 3mm of rain is expected — a deficit of '
+        '15mm. Recommended action: irrigate with approximately 15mm of water in the next 1-2 days.',
+    needsHuman: false,
+    sources: [
+      AdvisorySource(
+          domain: 'soil', summary: 'Soil moisture 22% (Low).', source: 'Open-Meteo soil moisture (0-1cm)'),
+      AdvisorySource(
+          domain: 'weather',
+          summary: 'Currently 33.0°C, 48% humidity, 0.0mm rain in the last hour.',
+          source: 'Open-Meteo current weather'),
+      AdvisorySource(
+          domain: 'irrigation',
+          summary:
+              'Over the next 3 days: crop water use ~18.0mm, effective rainfall ~3.0mm -> irrigation need ~15.0mm.',
+          source: 'FAO-56 water balance (app/agronomy/water_balance.py)'),
     ],
   );
 

@@ -19,6 +19,7 @@ import '../shared/models/farm.dart';
 import '../shared/models/farmer_profile.dart';
 import '../shared/models/notification_item.dart';
 import '../shared/models/recommendation.dart';
+import '../shared/models/advisory.dart';
 
 // ══════════════════════════════════════════════════════════════
 // CORE PROVIDERS
@@ -311,9 +312,20 @@ final soilHistoryProvider = FutureProvider<List<SoilHistoryPoint>>((ref) async {
   if (farm == null || !farm.hasCoordinates) {
     throw StateError('Add a location to your farm to see real soil history.');
   }
+  // The backend intentionally has no real daily series for 'pH' — it's a
+  // static soil-survey baseline (SoilGrids), not something that changes day
+  // to day, and it 400s on purpose rather than fabricating a trend. Fail
+  // here with a message a farmer can actually read, instead of surfacing
+  // the raw DioException from that 400.
+  if (param == 'pH') {
+    throw StateError(
+      "pH doesn't have a daily history — it's a soil survey baseline, not "
+      'a value that changes day to day. See the Soil screen for the current '
+      'reading, or get a free Soil Health Card test at your nearest Krishi '
+      'Vigyan Kendra for an updated lab value.',
+    );
+  }
   final api = await ref.watch(apiClientProvider.future);
-  // Note: the backend intentionally has no real daily series for 'pH' — it's
-  // a static soil-survey baseline, not something that changes day to day.
   final response = await api.get<List<dynamic>>(
     ApiConstants.soilHistory,
     queryParameters: {'farm_id': farm.id, 'param': param, 'days': 7},
@@ -581,6 +593,86 @@ class RecommendationRepository {
     );
     return FertilizerRecommendation.fromJson(response.data!);
   }
+}
+
+/// Advisory agent chat (Phase 4) — real mode asks the LangGraph agent in
+/// backend/app/agent/ (weather + soil + disease specialists, FAO-56
+/// irrigation math, then an LLM synthesis + writer pass); demo mode returns
+/// a canned example. One question can take longer than a typical API call
+/// (multiple LLM calls chained server-side), hence the longer timeout below.
+class AdvisoryTurn {
+  final String question;
+  final AdvisoryAnswer? answer; // null while this turn is in flight
+  final String? error;
+  const AdvisoryTurn({required this.question, this.answer, this.error});
+}
+
+class AdvisoryChatState {
+  final List<AdvisoryTurn> turns;
+  final bool sending;
+  const AdvisoryChatState({this.turns = const [], this.sending = false});
+
+  AdvisoryChatState copyWith({List<AdvisoryTurn>? turns, bool? sending}) {
+    return AdvisoryChatState(turns: turns ?? this.turns, sending: sending ?? this.sending);
+  }
+}
+
+final advisoryChatProvider = StateNotifierProvider<AdvisoryChatNotifier, AdvisoryChatState>((ref) {
+  return AdvisoryChatNotifier(ref);
+});
+
+class AdvisoryChatNotifier extends StateNotifier<AdvisoryChatState> {
+  final Ref _ref;
+  AdvisoryChatNotifier(this._ref) : super(const AdvisoryChatState());
+
+  Future<void> ask(String question) async {
+    final q = question.trim();
+    if (q.isEmpty || state.sending) return;
+
+    state = state.copyWith(turns: [...state.turns, AdvisoryTurn(question: q)], sending: true);
+
+    if (_ref.read(demoModeProvider)) {
+      await Future.delayed(const Duration(milliseconds: 900));
+      _replaceLast(answer: MockData.advisoryAnswer);
+      state = state.copyWith(sending: false);
+      return;
+    }
+
+    final farm = _ref.read(activeFarmProvider);
+    if (farm == null || !farm.hasCoordinates) {
+      _replaceLast(error: 'Add a location to your farm first (Farms → Edit → Latitude/Longitude).');
+      state = state.copyWith(sending: false);
+      return;
+    }
+
+    try {
+      final api = await _ref.read(apiClientProvider.future);
+      final response = await api.post<Map<String, dynamic>>(
+        ApiConstants.advisoryAsk,
+        data: {'farm_id': farm.id, 'question': q},
+        options: Options(receiveTimeout: const Duration(seconds: 45)),
+      );
+      _replaceLast(answer: AdvisoryAnswer.fromJson(response.data!));
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = data is Map && data['detail'] != null
+          ? data['detail'].toString()
+          : 'Could not reach the advisory agent. Please try again.';
+      _replaceLast(error: message);
+    } finally {
+      state = state.copyWith(sending: false);
+    }
+  }
+
+  void _replaceLast({AdvisoryAnswer? answer, String? error}) {
+    if (state.turns.isEmpty) return;
+    final turns = [...state.turns];
+    final last = turns.last;
+    turns[turns.length - 1] = AdvisoryTurn(question: last.question, answer: answer, error: error);
+    state = state.copyWith(turns: turns);
+  }
+
+  void reset() => state = const AdvisoryChatState();
 }
 
 /// Government schemes.
