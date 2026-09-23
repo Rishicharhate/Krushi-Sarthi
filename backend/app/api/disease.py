@@ -1,6 +1,6 @@
 """Disease detection — Phase 2 of docs/IMPLEMENTATION_PLAN.md.
 
-Cascade today: quality gate -> local MobileNetV2 -> honest decline (see
+Cascade today: quality gate -> local ViT -> tiered answer (see
 app/ml/disease/cascade.py). Stages [2] VLM second opinion and [3] paid API
 fallback are not wired up — they need API keys/spend this deployment doesn't
 have configured.
@@ -19,7 +19,7 @@ from app.db.database import get_db
 from app.db.models import DiseaseScan, User
 from app.ml.disease.cascade import run_cascade
 from app.ml.disease.quality import QualityRejected
-from app.schemas import DiseaseDetectionOut
+from app.schemas import DiseaseAlternativeOut, DiseaseDetectionOut
 
 router = APIRouter(prefix="/disease", tags=["disease"])
 
@@ -83,6 +83,12 @@ async def detect_disease(
         recommendation=result.recommendation,
         image_url=_image_url(request, filename),
         scanned_at=scanned_at,
+        certainty=result.certainty,
+        caution=result.caution,
+        alternatives=[
+            DiseaseAlternativeOut(disease=a.disease, confidence=a.confidence, symptoms=a.symptoms)
+            for a in result.alternatives
+        ],
     )
 
 

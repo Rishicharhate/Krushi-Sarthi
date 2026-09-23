@@ -209,6 +209,12 @@ class NotificationItemOut(BaseModel):
 
 
 # ── Disease detection ── (mirrors lib/shared/models/disease_result.dart)
+class DiseaseAlternativeOut(BaseModel):
+    disease: str
+    confidence: float  # 0-100
+    symptoms: str | None = None
+
+
 class DiseaseDetectionOut(BaseModel):
     disease: str
     confidence: float  # 0-100, NOT 0-1 — see app/ml/disease/cascade.py
@@ -218,3 +224,7 @@ class DiseaseDetectionOut(BaseModel):
     recommendation: str | None = None
     image_url: str | None = None
     scanned_at: datetime
+    # Only set on a fresh /detect response; history rows don't store them.
+    certainty: str | None = None  # "high" | "medium" | "low"
+    caution: str | None = None
+    alternatives: list[DiseaseAlternativeOut] = []

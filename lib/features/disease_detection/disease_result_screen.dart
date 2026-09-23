@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../app/theme/app_colors.dart';
+import '../../shared/models/disease_result.dart';
 
 /// Disease result screen showing AI analysis output.
 class DiseaseResultScreen extends ConsumerWidget {
@@ -58,16 +59,21 @@ class DiseaseResultScreen extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: _confidenceColor(result.confidence).withValues(alpha: 0.12),
+                      color: _certaintyColor(result).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'Confidence: ${result.confidence.toStringAsFixed(1)}%',
+                      _certaintyLabel(result),
                       style: theme.textTheme.labelLarge?.copyWith(
-                        color: _confidenceColor(result.confidence),
+                        color: _certaintyColor(result),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Model score: ${result.confidence.toStringAsFixed(1)}%',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -75,6 +81,26 @@ class DiseaseResultScreen extends ConsumerWidget {
           ),
 
           const SizedBox(height: 16),
+
+          if (result.caution != null) ...[
+            Card(
+              color: AppColors.statusAttentionBg,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_rounded, color: AppColors.statusAttention),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(result.caution!, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // ── Disease Information ──
           if (result.description != null) ...[
@@ -103,6 +129,32 @@ class DiseaseResultScreen extends ConsumerWidget {
             ),
           ],
 
+          if (result.alternatives.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _Section(
+              title: 'Other Possibilities',
+              icon: Icons.compare_arrows_rounded,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final alt in result.alternatives) ...[
+                    Text(
+                      '${alt.disease} (${alt.confidence.toStringAsFixed(0)}%)',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    if (alt.symptoms != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 12),
+                        child: Text(alt.symptoms!, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+                      )
+                    else
+                      const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 24),
 
           ElevatedButton.icon(
@@ -120,10 +172,39 @@ class DiseaseResultScreen extends ConsumerWidget {
     );
   }
 
-  Color _confidenceColor(double confidence) {
-    if (confidence >= 90) return AppColors.statusHealthy;
-    if (confidence >= 70) return AppColors.statusAttention;
-    return AppColors.statusCritical;
+  /// Uses the backend's certainty tier, which is calibrated for this model
+  /// (see backend/app/ml/disease/cascade.py). The raw softmax % is not: the
+  /// model averages ~53% even when correct, so fixed 70/90% cut-offs would
+  /// paint almost every correct diagnosis red.
+  String _certaintyLabel(DiseaseResult result) {
+    switch (_tier(result)) {
+      case 'high':
+        return 'High confidence';
+      case 'medium':
+        return 'Likely match';
+      default:
+        return 'Low confidence';
+    }
+  }
+
+  Color _certaintyColor(DiseaseResult result) {
+    switch (_tier(result)) {
+      case 'high':
+        return AppColors.statusHealthy;
+      case 'medium':
+        return AppColors.statusAttention;
+      default:
+        return AppColors.statusCritical;
+    }
+  }
+
+  // History rows and mock data carry no tier; fall back to the backend's
+  // thresholds (40% = high, 30% = medium).
+  String _tier(DiseaseResult result) {
+    if (result.certainty != null) return result.certainty!;
+    if (result.confidence >= 40) return 'high';
+    if (result.confidence >= 30) return 'medium';
+    return 'low';
   }
 }
 

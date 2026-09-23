@@ -34,7 +34,7 @@ async def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
 async def get_current_weather(db: Session, lat: float, lon: float) -> dict[str, Any]:
     """Current temperature, humidity, rainfall, wind — for /api/environment/current."""
     key = f"om:current:{_round(lat)}:{_round(lon)}"
-    cached = cache_get(db, key, settings.weather_cache_ttl)
+    cached = cache_get(db, key, settings.current_weather_cache_ttl)
     if cached is not None:
         return cached
 

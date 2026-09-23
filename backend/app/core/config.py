@@ -51,6 +51,11 @@ class Settings(BaseSettings):
 
     # Cache TTLs, in seconds.
     weather_cache_ttl: int = 3 * 60 * 60      # 3h, matches the plan's connector table
+    # "Current" readings need to be fresh: over 3h a mid-afternoon peak (e.g.
+    # 32°C at 3pm) kept being shown into the evening. Open-Meteo updates its
+    # current conditions every 15 min, and the cache key is shared by all
+    # farms in a ~1km cell, so this stays far under the 10k calls/day cap.
+    current_weather_cache_ttl: int = 15 * 60  # 15 min
     soil_cache_ttl: int = 30 * 24 * 60 * 60   # 30 days — SoilGrids is a static raster
     ndvi_cache_ttl: int = 5 * 24 * 60 * 60    # 5 days — one Sentinel-2 revisit cycle
     # A past satellite pass never changes, so a per-scene verdict is good

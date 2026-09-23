@@ -1,3 +1,26 @@
+/// A runner-up diagnosis, shown when the model isn't highly confident.
+class DiseaseAlternative {
+  final String disease;
+  final double confidence;
+  final String? symptoms;
+
+  const DiseaseAlternative({required this.disease, required this.confidence, this.symptoms});
+
+  factory DiseaseAlternative.fromJson(Map<String, dynamic> json) {
+    return DiseaseAlternative(
+      disease: json['disease'] as String,
+      confidence: (json['confidence'] as num).toDouble(),
+      symptoms: json['symptoms'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'disease': disease,
+    'confidence': confidence,
+    'symptoms': symptoms,
+  };
+}
+
 /// AI disease detection result model.
 class DiseaseResult {
   final String disease;
@@ -9,6 +32,11 @@ class DiseaseResult {
   final String? imageUrl;
   final DateTime scannedAt;
 
+  /// "high" | "medium" | "low" — only present on a fresh scan, not history.
+  final String? certainty;
+  final String? caution;
+  final List<DiseaseAlternative> alternatives;
+
   const DiseaseResult({
     required this.disease,
     required this.confidence,
@@ -18,6 +46,9 @@ class DiseaseResult {
     this.recommendation,
     this.imageUrl,
     required this.scannedAt,
+    this.certainty,
+    this.caution,
+    this.alternatives = const [],
   });
 
   factory DiseaseResult.fromJson(Map<String, dynamic> json) {
@@ -32,6 +63,11 @@ class DiseaseResult {
       scannedAt: json['scanned_at'] != null
           ? DateTime.parse(json['scanned_at'] as String)
           : DateTime.now(),
+      certainty: json['certainty'] as String?,
+      caution: json['caution'] as String?,
+      alternatives: (json['alternatives'] as List<dynamic>? ?? [])
+          .map((e) => DiseaseAlternative.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -44,6 +80,9 @@ class DiseaseResult {
     'recommendation': recommendation,
     'image_url': imageUrl,
     'scanned_at': scannedAt.toIso8601String(),
+    'certainty': certainty,
+    'caution': caution,
+    'alternatives': alternatives.map((a) => a.toJson()).toList(),
   };
 
   bool get isHealthy => disease.toLowerCase().contains('healthy');
