@@ -1,0 +1,40 @@
+# Render Blueprint for the KrushiSarthi backend — see backend/README.md
+# ("Deploying to Render") for the step-by-step.
+#
+# Why not the free plan: with the disease ViT, sentence-transformers and
+# rasterio loaded the API sits at ~950 MB RAM, over the free/starter 512 MB
+# limit, and free instances sleep (the 05:30 daily-advisory cron would never
+# fire) and can't attach a disk (every deploy would wipe all users and farms).
+services:
+  - type: web
+    name: krushisarthi-api
+    runtime: python
+    plan: standard          # 2 GB RAM
+    region: singapore       # closest Render region to India
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: krushisarthi-data
+      mountPath: /var/data
+      sizeGB: 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.14
+      # Everything that must survive a redeploy lives on the disk.
+      - key: DATABASE_URL
+        value: sqlite:////var/data/krushisarthi.db
+      - key: AGENT_CHECKPOINT_DB
+        value: /var/data/agent_checkpoints.db
+      - key: STATIC_DIR
+        value: /var/data/static
+      - key: HF_HOME          # model downloads, so a restart doesn't refetch ~450 MB
+        value: /var/data/hf
+      - key: JWT_SECRET
+        generateValue: true
+      # Secrets: Render prompts for these in the dashboard — never commit them.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATA_GOV_API_KEY
+        sync: false

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
@@ -28,8 +26,8 @@ app.add_middleware(
 )
 
 # Serves uploaded disease-detection photos back out (see app/api/disease.py).
-_STATIC_DIR = Path(__file__).resolve().parent / "static"
-_STATIC_DIR.mkdir(exist_ok=True)
+_STATIC_DIR = settings.static_dir
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 

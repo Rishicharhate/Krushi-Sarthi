@@ -8,13 +8,13 @@ have configured.
 import uuid
 from datetime import datetime, timezone
 from io import BytesIO
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.db.database import get_db
 from app.db.models import DiseaseScan, User
 from app.ml.disease.cascade import run_cascade
@@ -23,7 +23,7 @@ from app.schemas import DiseaseAlternativeOut, DiseaseDetectionOut
 
 router = APIRouter(prefix="/disease", tags=["disease"])
 
-_UPLOAD_DIR = Path(__file__).resolve().parents[1] / "static" / "uploads" / "disease"
+_UPLOAD_DIR = get_settings().static_dir / "uploads" / "disease"
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 _HISTORY_LIMIT = 50

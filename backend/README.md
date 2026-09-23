@@ -94,6 +94,26 @@ build time:
 flutter run --dart-define=API_BASE_URL=http://192.168.1.23:8000
 ```
 
+## Deploying to Render
+
+`render.yaml` at the repo root is a Render Blueprint for this backend.
+
+1. On render.com: **New → Blueprint**, then pick this GitHub repo.
+2. Render asks for `GROQ_API_KEY` and `DATA_GOV_API_KEY`. Paste them there,
+   not into any committed file. It generates `JWT_SECRET` itself.
+3. The first build installs CPU torch and takes roughly 10 minutes. The first
+   disease scan and scheme search after that download their models
+   (~450 MB) to the disk, so they are slow once.
+4. Build the app against the deployed URL:
+   `flutter build apk --dart-define=API_BASE_URL=https://krushisarthi-api.onrender.com`
+
+The plan has to be **Standard (2 GB)**. The loaded ML models need ~950 MB,
+which is over the 512 MB of Free and Starter. A free instance would also
+sleep, so the 05:30 cron would never run, and it can't attach a disk. The
+SQLite DB, the agent checkpoints and uploaded photos all live on the
+`/var/data` disk (`DATABASE_URL`, `AGENT_CHECKPOINT_DB` and `STATIC_DIR`), so
+they survive redeploys.
+
 ## Data model note
 
 `Farm.latitude` / `Farm.longitude` are required for every endpoint above —

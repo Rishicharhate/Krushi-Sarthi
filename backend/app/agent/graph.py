@@ -15,15 +15,14 @@ same zero-infrastructure philosophy as the rest of this backend (see
 app/core/config.py's database_url comment); swap for Postgres if this ever
 needs to survive concurrent production load.
 """
-from pathlib import Path
-
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from app.agent import nodes
 from app.agent.state import FarmState
+from app.core.config import get_settings
 
-_DB_PATH = Path(__file__).resolve().parents[2] / "agent_checkpoints.db"
+_DB_PATH = get_settings().agent_checkpoint_db
 
 _checkpointer_cm = None
 _compiled = None

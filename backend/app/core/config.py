@@ -6,8 +6,11 @@ credit card. Override via a local .env file (see .env.example) or real
 environment variables — never hardcode secrets in code.
 """
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -19,6 +22,12 @@ class Settings(BaseSettings):
     # SQLite by default — a single file, zero infrastructure cost.
     # Point DATABASE_URL at Postgres later if/when the project needs it.
     database_url: str = "sqlite:///./krushisarthi.db"
+
+    # The other two pieces of runtime state. Defaults keep them inside
+    # backend/ for local dev; on a host whose code folder is wiped on every
+    # deploy (Render), point these — and DATABASE_URL — at a persistent disk.
+    agent_checkpoint_db: Path = _BACKEND_DIR / "agent_checkpoints.db"
+    static_dir: Path = _BACKEND_DIR / "app" / "static"  # uploaded disease photos
 
     # Secret used to sign the app's own JWTs (device-bound auth — see
     # app/core/security.py). Generate a real one for anything beyond local dev:
