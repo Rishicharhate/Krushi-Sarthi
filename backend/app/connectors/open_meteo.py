@@ -17,7 +17,10 @@ settings = get_settings()
 
 
 def _round(v: float) -> float:
-    # Round coordinates to ~1.1km precision so nearby cache hits actually hit.
+    # ~1.1km precision is deliberately coarse: Open-Meteo's weather grids are
+    # 1-11km, so nearby farms genuinely share the same weather and should
+    # share the cache entry. (Finer rounding is used for SoilGrids and
+    # Sentinel-2, whose grids are 250m and 10m.)
     return round(v, 2)
 
 

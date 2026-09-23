@@ -19,6 +19,14 @@ def cache_get(db: Session, key: str, ttl_seconds: int) -> Any | None:
     return json.loads(row.payload)
 
 
+def cache_get_stale(db: Session, key: str) -> Any | None:
+    """Like cache_get but ignores TTL — for degraded-mode fallback when a
+    live fetch fails (e.g. a rate-limited free API key). Serving slightly
+    stale data beats a hard failure; the caller decides when this applies."""
+    row = db.query(ApiCache).filter(ApiCache.cache_key == key).first()
+    return json.loads(row.payload) if row is not None else None
+
+
 def cache_set(db: Session, key: str, value: Any) -> None:
     row = db.query(ApiCache).filter(ApiCache.cache_key == key).first()
     payload = json.dumps(value)

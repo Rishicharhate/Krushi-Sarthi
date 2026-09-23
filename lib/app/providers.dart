@@ -430,6 +430,19 @@ final environmentAlertsProvider = FutureProvider<List<EnvironmentAlert>>((ref) a
   return const [];
 });
 
+/// Satellite reads are the slowest call in the app: on a cold cache the
+/// backend fetches windowed Sentinel-2 COGs for several candidate scenes
+/// (~10s measured; instant once cached for the revisit cycle).
+///
+/// Both timeouts are set deliberately. On Flutter Web, Dio's browser (XHR)
+/// adapter bounds the WHOLE request by connectTimeout rather than just the
+/// handshake, so a receiveTimeout alone is silently ignored there and the
+/// request dies at the global 30s connectTimeout.
+final _satelliteTimeouts = Options(
+  connectTimeout: const Duration(seconds: 90),
+  receiveTimeout: const Duration(seconds: 90),
+);
+
 /// Crop health / NDVI — real mode reads cloud-masked Sentinel-2 imagery via
 /// the backend (no account needed; see backend/app/connectors/sentinel.py).
 /// Satellite reads are slow, hence the longer timeout: the backend fetches
@@ -450,22 +463,32 @@ final cropHealthProvider = FutureProvider<CropHealth>((ref) async {
     final response = await api.get<Map<String, dynamic>>(
       ApiConstants.cropHealth,
       queryParameters: {'farm_id': farm.id},
-      options: Options(receiveTimeout: const Duration(minutes: 4)),
+      options: _satelliteTimeouts,
     );
     return CropHealth.fromJson(response.data!);
   } on DioException catch (e) {
-    // 404 here isn't a bug — it means Sentinel-2 had no cloud-free view of
-    // this field. Surface that plainly instead of a raw Dio error.
-    if (e.response?.statusCode == 404) {
-      throw StateError(
-        e.response?.data is Map && e.response?.data['detail'] != null
-            ? e.response!.data['detail'].toString()
-            : 'No cloud-free satellite view of this field recently.',
-      );
-    }
-    rethrow;
+    throw _satelliteError(e);
   }
 });
+
+/// Neither of these is a bug, so show the backend's plain explanation rather
+/// than a raw Dio error: 404 means Sentinel-2 had no cloud-free view of the
+/// field; 503 means imagery is still being fetched in the background (the
+/// first fetch for a field can take a minute or two).
+Object _satelliteError(DioException e) {
+  final code = e.response?.statusCode;
+  if (code == 404 || code == 503) {
+    final data = e.response?.data;
+    return StateError(
+      data is Map && data['detail'] != null
+          ? data['detail'].toString()
+          : code == 503
+              ? 'Fetching satellite imagery for this field. Try again shortly.'
+              : 'No cloud-free satellite view of this field recently.',
+    );
+  }
+  return e;
+}
 
 /// NDVI history — one point per cloud-free satellite pass.
 final ndviHistoryProvider = FutureProvider<List<NdviHistoryPoint>>((ref) async {
@@ -478,14 +501,18 @@ final ndviHistoryProvider = FutureProvider<List<NdviHistoryPoint>>((ref) async {
     throw StateError('Add a location to your farm to see real NDVI history.');
   }
   final api = await ref.watch(apiClientProvider.future);
-  final response = await api.get<List<dynamic>>(
-    ApiConstants.ndviHistory,
-    queryParameters: {'farm_id': farm.id},
-    options: Options(receiveTimeout: const Duration(minutes: 4)),
-  );
-  return (response.data ?? [])
-      .map((e) => NdviHistoryPoint.fromJson(e as Map<String, dynamic>))
-      .toList();
+  try {
+    final response = await api.get<List<dynamic>>(
+      ApiConstants.ndviHistory,
+      queryParameters: {'farm_id': farm.id},
+      options: _satelliteTimeouts,
+    );
+    return (response.data ?? [])
+        .map((e) => NdviHistoryPoint.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    throw _satelliteError(e);
+  }
 });
 
 /// Mandi price search term — empty means "use the active farm's crop".

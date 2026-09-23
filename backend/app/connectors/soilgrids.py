@@ -22,7 +22,9 @@ _DEPTH = "0-5cm"  # topsoil, most relevant to a standing crop
 
 
 def _round(v: float) -> float:
-    return round(v, 2)
+    # ~110m of precision, finer than SoilGrids' 250m grid, so farms that sit in
+    # different soil pixels don't collapse onto one cache entry.
+    return round(v, 3)
 
 
 async def get_soil_profile(db: Session, lat: float, lon: float) -> dict[str, Any] | None:

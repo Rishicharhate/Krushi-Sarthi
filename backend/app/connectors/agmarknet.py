@@ -26,7 +26,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.cache import cache_get, cache_set
+from app.db.cache import cache_get, cache_get_stale, cache_set
 
 settings = get_settings()
 
@@ -128,10 +128,22 @@ async def get_mandi_prices(
         params["filters[district]"] = district
 
     url = f"https://api.data.gov.in/resource/{_RESOURCE_ID}?{urllib.parse.urlencode(params)}"
-    async with httpx.AsyncClient(timeout=45.0, headers=_HEADERS) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        data = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=45.0, headers=_HEADERS) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPError:
+        # The shared sample API key (see module docstring) gets rate-limited
+        # under real traffic — a 429 here is expected, not exceptional. Serve
+        # the last known-good result for this exact query instead of a hard
+        # failure; only re-raise when there is truly nothing to fall back on,
+        # so the caller still sees an honest error rather than silently
+        # returning stale-forever data with no way to know it's stale.
+        stale = cache_get_stale(db, key)
+        if stale is not None:
+            return stale
+        raise
 
     records = data.get("records", [])
     result = [

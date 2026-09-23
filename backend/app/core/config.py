@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     weather_cache_ttl: int = 3 * 60 * 60      # 3h, matches the plan's connector table
     soil_cache_ttl: int = 30 * 24 * 60 * 60   # 30 days — SoilGrids is a static raster
     ndvi_cache_ttl: int = 5 * 24 * 60 * 60    # 5 days — one Sentinel-2 revisit cycle
+    # A past satellite pass never changes, so a per-scene verdict is good
+    # forever. This is what stops the same COG being re-read (plan §4).
+    scene_cache_ttl: int = 365 * 24 * 60 * 60
     market_cache_ttl: int = 12 * 60 * 60      # 12h — Agmarknet publishes daily
 
     # Groq — the one paid-capable service in this file, but has a free tier.

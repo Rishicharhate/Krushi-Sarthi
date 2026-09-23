@@ -44,10 +44,13 @@ async def fetch_soil(db: Session, lat: float, lon: float) -> dict:
 
 
 async def fetch_ndvi(db: Session, lat: float, lon: float) -> dict | None:
-    """Latest cloud-free NDVI reading, or None when the field has had no
-    clear satellite pass — which is a real answer, not a failure."""
+    """Latest cloud-free NDVI reading, None when the field has had no clear
+    satellite pass (a real answer, not a failure), or {"pending": True} while
+    the imagery is still being fetched in the background."""
     try:
         return await sentinel.get_latest_ndvi(db, lat, lon)
+    except sentinel.NdviPending:
+        return {"pending": True}
     except Exception:  # noqa: BLE001 — degrade gracefully like the other tools
         return None
 

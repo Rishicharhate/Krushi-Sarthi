@@ -104,6 +104,16 @@ async def ndvi_node(state: FarmState) -> dict:
     finally:
         db.close()
 
+    if reading is not None and reading.get("pending"):
+        return {
+            "ndvi": None,
+            "findings": [{
+                "domain": "ndvi",
+                "summary": "Satellite crop-health (NDVI) is still being fetched for this field, so it isn't available for this answer.",
+                "source": "Sentinel-2 L2A (AWS Open Data), background fetch in progress",
+            }],
+        }
+
     if reading is None:
         # Say so explicitly rather than staying silent — "we couldn't see the
         # field" is itself information the writer should be able to use.
