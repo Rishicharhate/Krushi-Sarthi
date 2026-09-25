@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # Retrained classifier head written by app/ml/disease/retrain.py; the
     # loader uses it instead of the published one when the file exists.
     disease_head_path: Path = _BACKEND_DIR / "disease_head.pt"
+    # Labelled disease photos, one folder per class (ImageFolder layout):
+    # tester feedback lands here, and photos from other sources can be
+    # dropped in too. retrain.py trains on whatever is in it. Never committed
+    # — these are real users' field photos.
+    disease_dataset_dir: Path = _BACKEND_DIR / "datasets" / "disease_feedback"
 
     # Secret used to sign the app's own JWTs (device-bound auth — see
     # app/core/security.py). Generate a real one for anything beyond local dev:

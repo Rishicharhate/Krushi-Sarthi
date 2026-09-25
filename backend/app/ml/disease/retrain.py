@@ -45,7 +45,7 @@ import torch
 from PIL import Image
 
 from app.core.config import get_settings
-from app.ml.disease import loader
+from app.ml.disease import dataset, loader
 
 _BASE_PATH = Path(__file__).resolve().parents[3] / "notebooks" / "data" / "plantdoc_features.npz"
 _PLANTDOC = "https://raw.githubusercontent.com/pratikkayal/PlantDoc-Dataset/master/"
@@ -56,6 +56,7 @@ L2_TO_PUBLISHED = 1e-3
 STEPS = 300
 MAX_TEST_DROP = 1.0     # percentage points
 _FOLDS = 5
+_DUPLICATE_SIM = 0.99   # re-uploads of one photo measured 1.000; distinct photos <= 0.59
 
 
 # ── Features ─────────────────────────────────────────────────────────────────
@@ -121,26 +122,25 @@ def build_base() -> None:
 
 
 def _feedback_features() -> tuple[np.ndarray, np.ndarray]:
-    from app.db.database import SessionLocal, init_db
-    from app.db.models import DiseaseFeedback, DiseaseScan
-
-    init_db()  # the feedback table may not exist yet if the API hasn't restarted
-
+    """Features of every photo in the labelled dataset folder (tester
+    feedback, plus anything dropped in by hand — see dataset.py)."""
     model = loader._load()[1]
     label_to_id = {v: int(k) for k, v in model.config.id2label.items()}
-    upload_dir = get_settings().static_dir / "uploads" / "disease"
     E, Y = [], []
-    with SessionLocal() as db:
-        rows = (db.query(DiseaseFeedback, DiseaseScan)
-                .join(DiseaseScan, DiseaseScan.id == DiseaseFeedback.scan_id)
-                .filter(DiseaseFeedback.true_label.isnot(None)).all())
-        for fb, scan in rows:
-            path = upload_dir / scan.image_path
-            if not path.exists() or fb.true_label not in label_to_id:
-                continue
-            with Image.open(path) as image:
-                E.append(loader.embed_and_logits(image)[0].numpy())
-            Y.append(label_to_id[fb.true_label])
+    skipped = 0
+    for path, label in dataset.labelled_images():
+        with Image.open(path) as image:
+            feat = loader.embed_and_logits(image)[0].numpy()
+        # Testers re-scan the same photo; a copy on both sides of a CV
+        # split would score the head on a photo it trained on.
+        unit = feat / np.linalg.norm(feat)
+        if any(float(unit @ (e / np.linalg.norm(e))) > _DUPLICATE_SIM for e in E):
+            skipped += 1
+            continue
+        E.append(feat)
+        Y.append(label_to_id[label])
+    if skipped:
+        print(f"skipped {skipped} duplicate photo(s)")
     return np.array(E, dtype=np.float32).reshape(-1, 768), np.array(Y, dtype=np.int64)
 
 

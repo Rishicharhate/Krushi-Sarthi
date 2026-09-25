@@ -17,7 +17,7 @@ from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.db.database import get_db
 from app.db.models import DiseaseFeedback, DiseaseScan, User
-from app.ml.disease import loader
+from app.ml.disease import dataset, loader
 from app.ml.disease.cascade import run_cascade
 from app.ml.disease.labels import DISEASE_INFO
 from app.ml.disease.quality import QualityRejected
@@ -118,7 +118,8 @@ async def disease_feedback(
 ) -> DiseaseFeedbackOut:
     """Testing-phase only (FEEDBACK_MODE): record whether a diagnosis was
     right, and if not, what it really was. Nothing is learned here — the
-    labelled photos feed app/ml/disease/retrain.py, which only replaces the
+    photo is filed into the labelled dataset (app/ml/disease/dataset.py),
+    which feeds app/ml/disease/retrain.py, which only replaces the
     model if it scores better on the held-out field photos."""
     if not settings.feedback_mode:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Feedback collection is disabled on this server.")
@@ -147,6 +148,9 @@ async def disease_feedback(
     fb.note = body.note
     db.add(fb)
     db.commit()
+    # File the photo under its label, building the ImageFolder dataset
+    # retrain.py trains on (app/ml/disease/dataset.py).
+    dataset.save(scan.id, _UPLOAD_DIR / scan.image_path, true_label, body.note)
 
     total = db.query(DiseaseFeedback).count()
     usable = db.query(DiseaseFeedback).filter(DiseaseFeedback.true_label.isnot(None)).count()

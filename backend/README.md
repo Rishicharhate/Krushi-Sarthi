@@ -234,6 +234,12 @@ Measured numbers are in `notebooks/disease_calibration.json`.
   python -m app.ml.disease.retrain --promote  # writes disease_head.pt
   ```
 
+  Every answer also files the photo into a labelled dataset at
+  `datasets/disease_feedback/<label>/` (ImageFolder layout, gitignored).
+  Photos from other sources can be dropped into the matching folder, and
+  retraining uses them too. `python -m app.ml.disease.dataset` prints
+  per-class counts, and `--rebuild` re-files every feedback row.
+
   Feedback is used only when it beats the plain retrain on the tester's own
   photos (cross-validated). Nothing is promoted if accuracy on the held-out
   PlantDoc test photos drops. This is supervised learning from human labels.

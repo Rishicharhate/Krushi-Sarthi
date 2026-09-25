@@ -9,3 +9,7 @@ __pycache__/
 *.db-wal
 .pytest_cache/
 app/static/
+
+# Labelled field photos from tester feedback (app/ml/disease/dataset.py) —
+# real users' photos, never committed.
+datasets/
