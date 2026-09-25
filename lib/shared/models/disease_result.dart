@@ -37,6 +37,13 @@ class DiseaseResult {
   final String? caution;
   final List<DiseaseAlternative> alternatives;
 
+  /// Set on a fresh scan; what POST /api/disease/feedback refers to.
+  final String? scanId;
+
+  /// True only when the backend runs with FEEDBACK_MODE (testing builds) —
+  /// the result screen then asks the tester whether the diagnosis was right.
+  final bool feedbackEnabled;
+
   const DiseaseResult({
     required this.disease,
     required this.confidence,
@@ -49,6 +56,8 @@ class DiseaseResult {
     this.certainty,
     this.caution,
     this.alternatives = const [],
+    this.scanId,
+    this.feedbackEnabled = false,
   });
 
   factory DiseaseResult.fromJson(Map<String, dynamic> json) {
@@ -68,6 +77,8 @@ class DiseaseResult {
       alternatives: (json['alternatives'] as List<dynamic>? ?? [])
           .map((e) => DiseaseAlternative.fromJson(e as Map<String, dynamic>))
           .toList(),
+      scanId: json['scan_id'] as String?,
+      feedbackEnabled: json['feedback_enabled'] as bool? ?? false,
     );
   }
 
@@ -83,9 +94,26 @@ class DiseaseResult {
     'certainty': certainty,
     'caution': caution,
     'alternatives': alternatives.map((a) => a.toJson()).toList(),
+    'scan_id': scanId,
+    'feedback_enabled': feedbackEnabled,
   };
 
   bool get isHealthy => disease.toLowerCase().contains('healthy');
+}
+
+/// One class the disease model can predict (GET /api/disease/labels).
+class DiseaseLabel {
+  final String label; // model vocabulary — sent back in feedback
+  final String displayName;
+  final String? crop;
+
+  const DiseaseLabel({required this.label, required this.displayName, this.crop});
+
+  factory DiseaseLabel.fromJson(Map<String, dynamic> json) => DiseaseLabel(
+    label: json['label'] as String,
+    displayName: json['display_name'] as String,
+    crop: json['crop'] as String?,
+  );
 }
 
 /// State for the disease detection flow.

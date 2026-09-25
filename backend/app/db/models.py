@@ -80,6 +80,24 @@ class DiseaseScan(Base):
     scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class DiseaseFeedback(Base):
+    """A tester's verdict on one scan — collected only when FEEDBACK_MODE is
+    on (never from farmers in production). Retraining reads these rows; see
+    app/ml/disease/retrain.py. One row per scan: re-answering overwrites."""
+    __tablename__ = "disease_feedback"
+
+    scan_id: Mapped[str] = mapped_column(ForeignKey("disease_scans.id"), primary_key=True)
+    # The model's own top-1 label (model vocabulary, not display name).
+    predicted_label: Mapped[str] = mapped_column(String(80))
+    is_correct: Mapped[bool] = mapped_column()
+    # Model-vocabulary label of what it really was. Equal to predicted_label
+    # when is_correct; None if the tester said "none of these" (a disease the
+    # model has no class for — kept, but unusable for retraining).
+    true_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class Notification(Base):
     """A notification written by the daily automation worker
     (app/workers/daily_advisory.py) — either the 05:30 IST cron job or its

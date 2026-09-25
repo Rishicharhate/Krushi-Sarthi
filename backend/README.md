@@ -209,3 +209,34 @@ database — brute-force cosine similarity over 7 vectors is fast enough.
 like "money if rain destroys my harvest" surfaces crop insurance (PMFBY)
 with zero shared keywords. It isn't always ranked #1 (small model, tiny
 corpus) — see `docs/STATUS.md` for the honest result, not an inflated one.
+
+## Disease model: calibration, retraining and tester feedback
+
+Measured numbers are in `notebooks/disease_calibration.json`.
+
+- **Calibration.** The published model was underconfident: a correct
+  diagnosis averaged 60% confidence. Temperature scaling fixes the displayed
+  percentage without changing which disease wins. Correct answers now
+  average about 84%. The cascade thresholds (`cascade.py`) are set on this
+  calibrated scale.
+- **Retrained final layer (`disease_head.pt`).** Retraining only the last
+  layer on PlantDoc's training photos, with balanced classes, raised
+  PlantDoc test accuracy from 72.5% to 78.0%. The loader uses this file
+  whenever it exists.
+- **Tester feedback (testing phase only).** With `FEEDBACK_MODE=true` in a
+  local `.env`, the app asks "was this correct?" after every scan. If the
+  answer is no, the tester types or picks the real disease. Production
+  (`render.yaml`) keeps `FEEDBACK_MODE=false`, so farmers are never asked.
+  To learn from the collected answers:
+
+  ```bash
+  python -m app.ml.disease.retrain            # dry run: prints metrics
+  python -m app.ml.disease.retrain --promote  # writes disease_head.pt
+  ```
+
+  Feedback is used only when it beats the plain retrain on the tester's own
+  photos (cross-validated). Nothing is promoted if accuracy on the held-out
+  PlantDoc test photos drops. This is supervised learning from human labels.
+  It is not RLHF, which trains a reward model to steer an LLM's text.
+  Spider mites is the main gap to fill: PlantDoc has only 2 training photos
+  of it.

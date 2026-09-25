@@ -33,6 +33,9 @@ services:
         value: /var/data/hf
       - key: JWT_SECRET
         generateValue: true
+      # Production: never ask farmers to label diseases. Testing builds only.
+      - key: FEEDBACK_MODE
+        value: "false"
       # Secrets: Render prompts for these in the dashboard — never commit them.
       - key: GROQ_API_KEY
         sync: false

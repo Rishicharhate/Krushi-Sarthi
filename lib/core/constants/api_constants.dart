@@ -31,6 +31,8 @@ class ApiConstants {
   // ── Disease Detection ──
   static const String diseaseDetect = '/api/disease/detect';
   static const String diseaseHistory = '/api/disease/history';
+  static const String diseaseLabels = '/api/disease/labels';
+  static const String diseaseFeedback = '/api/disease/feedback';
 
   // ── Advisory Agent ──
   static const String advisoryAsk = '/api/advisory/ask';

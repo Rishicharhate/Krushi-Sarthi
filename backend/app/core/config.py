@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     agent_checkpoint_db: Path = _BACKEND_DIR / "agent_checkpoints.db"
     static_dir: Path = _BACKEND_DIR / "app" / "static"  # uploaded disease photos
 
+    # Testing-phase switch for the disease model's human-feedback loop
+    # ("was this diagnosis right?" after every scan, see app/api/disease.py).
+    # Off by default and off in render.yaml: farmers must never be asked to
+    # label diseases. Turn on only in a tester's local .env.
+    feedback_mode: bool = False
+    # Retrained classifier head written by app/ml/disease/retrain.py; the
+    # loader uses it instead of the published one when the file exists.
+    disease_head_path: Path = _BACKEND_DIR / "disease_head.pt"
+
     # Secret used to sign the app's own JWTs (device-bound auth — see
     # app/core/security.py). Generate a real one for anything beyond local dev:
     #   python -c "import secrets; print(secrets.token_urlsafe(48))"

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
@@ -155,6 +156,11 @@ class DiseaseResultScreen extends ConsumerWidget {
             ),
           ],
 
+          if (result.feedbackEnabled && result.scanId != null) ...[
+            const SizedBox(height: 12),
+            _FeedbackCard(key: ValueKey(result.scanId), scanId: result.scanId!),
+          ],
+
           const SizedBox(height: 24),
 
           ElevatedButton.icon(
@@ -172,10 +178,8 @@ class DiseaseResultScreen extends ConsumerWidget {
     );
   }
 
-  /// Uses the backend's certainty tier, which is calibrated for this model
-  /// (see backend/app/ml/disease/cascade.py). The raw softmax % is not: the
-  /// model averages ~53% even when correct, so fixed 70/90% cut-offs would
-  /// paint almost every correct diagnosis red.
+  /// Uses the backend's certainty tier (see backend/app/ml/disease/cascade.py),
+  /// which also checks the gap to the runner-up, not just the top score.
   String _certaintyLabel(DiseaseResult result) {
     switch (_tier(result)) {
       case 'high':
@@ -199,11 +203,11 @@ class DiseaseResultScreen extends ConsumerWidget {
   }
 
   // History rows and mock data carry no tier; fall back to the backend's
-  // thresholds (40% = high, 30% = medium).
+  // calibrated thresholds (70% = high, 50% = medium).
   String _tier(DiseaseResult result) {
     if (result.certainty != null) return result.certainty!;
-    if (result.confidence >= 40) return 'high';
-    if (result.confidence >= 30) return 'medium';
+    if (result.confidence >= 70) return 'high';
+    if (result.confidence >= 50) return 'medium';
     return 'low';
   }
 }
@@ -237,5 +241,178 @@ class _Section extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Testing builds only (backend FEEDBACK_MODE): "was this right?" -> if not,
+/// the tester types/picks the real disease. Answers feed
+/// backend/app/ml/disease/retrain.py; farmers never see this card because
+/// the production server never sets feedback_enabled.
+class _FeedbackCard extends ConsumerStatefulWidget {
+  final String scanId;
+  const _FeedbackCard({super.key, required this.scanId});
+
+  @override
+  ConsumerState<_FeedbackCard> createState() => _FeedbackCardState();
+}
+
+enum _FeedbackStep { ask, correct, sending, done }
+
+class _FeedbackCardState extends ConsumerState<_FeedbackCard> {
+  _FeedbackStep _step = _FeedbackStep.ask;
+  DiseaseLabel? _picked;
+  bool _notInList = false;
+  final _note = TextEditingController();
+  String? _message;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send({required bool isCorrect}) async {
+    setState(() => _step = _FeedbackStep.sending);
+    try {
+      final count = await submitDiseaseFeedback(
+        ref,
+        scanId: widget.scanId,
+        isCorrect: isCorrect,
+        trueLabel: isCorrect || _notInList ? null : _picked?.label,
+        note: _notInList ? _note.text.trim() : null,
+      );
+      setState(() {
+        _step = _FeedbackStep.done;
+        _message = 'Saved. $count labelled photo${count == 1 ? '' : 's'} ready for retraining.';
+      });
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      setState(() {
+        _step = isCorrect ? _FeedbackStep.ask : _FeedbackStep.correct;
+        _message = data is Map && data['detail'] != null ? data['detail'].toString() : 'Could not save feedback.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.statusAttention),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.science_rounded, size: 20, color: AppColors.statusAttention),
+                const SizedBox(width: 8),
+                Text('Testing mode — model feedback',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ..._body(theme),
+            if (_message != null) ...[
+              const SizedBox(height: 8),
+              Text(_message!, style: theme.textTheme.bodySmall),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _body(ThemeData theme) {
+    switch (_step) {
+      case _FeedbackStep.ask:
+        return [
+          Text('Was this diagnosis correct?', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _send(isCorrect: true),
+                  icon: const Icon(Icons.thumb_up_rounded),
+                  label: const Text('Yes'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() {
+                    _step = _FeedbackStep.correct;
+                    _message = null;
+                  }),
+                  icon: const Icon(Icons.thumb_down_rounded),
+                  label: const Text('No'),
+                ),
+              ),
+            ],
+          ),
+        ];
+      case _FeedbackStep.correct:
+        final labels = ref.watch(diseaseLabelsProvider);
+        return [
+          Text('What was it? Start typing the disease or crop.', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          if (!_notInList)
+            labels.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Could not load the disease list.'),
+              data: (all) => Autocomplete<DiseaseLabel>(
+                displayStringForOption: (l) => l.displayName,
+                optionsBuilder: (value) {
+                  final q = value.text.toLowerCase();
+                  return all.where((l) =>
+                      l.displayName.toLowerCase().contains(q) || (l.crop ?? '').toLowerCase().contains(q));
+                },
+                onSelected: (l) => setState(() => _picked = l),
+                fieldViewBuilder: (context, controller, focus, onSubmit) => TextField(
+                  controller: controller,
+                  focusNode: focus,
+                  decoration: const InputDecoration(hintText: 'e.g. spider mites', isDense: true),
+                  onChanged: (_) => setState(() => _picked = null),
+                ),
+              ),
+            ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _notInList,
+            onChanged: (v) => setState(() => _notInList = v ?? false),
+            title: const Text("It's not in the list"),
+          ),
+          if (_notInList)
+            TextField(
+              controller: _note,
+              decoration: const InputDecoration(hintText: 'Describe what it was', isDense: true),
+              onChanged: (_) => setState(() {}),
+            ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: (_notInList ? _note.text.trim().isNotEmpty : _picked != null)
+                ? () => _send(isCorrect: false)
+                : null,
+            child: const Text('Submit correction'),
+          ),
+        ];
+      case _FeedbackStep.sending:
+        return [const LinearProgressIndicator()];
+      case _FeedbackStep.done:
+        return [
+          Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: AppColors.statusHealthy),
+              const SizedBox(width: 8),
+              Text('Thanks — feedback recorded.', style: theme.textTheme.bodyMedium),
+            ],
+          ),
+        ];
+    }
   }
 }

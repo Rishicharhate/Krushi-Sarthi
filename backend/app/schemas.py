@@ -228,3 +228,31 @@ class DiseaseDetectionOut(BaseModel):
     certainty: str | None = None  # "high" | "medium" | "low"
     caution: str | None = None
     alternatives: list[DiseaseAlternativeOut] = []
+    scan_id: str | None = None
+    # True only on a testing build (FEEDBACK_MODE) — tells the app to ask
+    # "was this correct?". Never true in production.
+    feedback_enabled: bool = False
+
+
+class DiseaseLabelOut(BaseModel):
+    label: str  # model vocabulary — what feedback must send back
+    display_name: str
+    crop: str | None = None
+
+
+class DiseaseFeedbackIn(BaseModel):
+    scan_id: str
+    is_correct: bool
+    # Required when is_correct is false, unless the tester picks "not in the
+    # list" by leaving it null and describing it in `note`.
+    true_label: str | None = None
+    note: str | None = None
+
+
+class DiseaseFeedbackOut(BaseModel):
+    scan_id: str
+    predicted_label: str
+    true_label: str | None
+    is_correct: bool
+    total_feedback: int
+    usable_for_training: int

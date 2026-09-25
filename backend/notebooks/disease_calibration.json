@@ -1,0 +1,113 @@
+{
+  "what_this_is": "Temperature-scaling calibration of asafe51/plantdoc-disease-classifier, measured on the same 215 PlantDoc TEST field photos as disease_field_eval.json.",
+  "problem": "The model is underconfident: mean top-1 probability was 0.60 even on correct answers, so correct diagnoses were routinely shown to users as ~38-50%.",
+  "method": "softmax(logits / T). T fitted by minimising NLL, 5-fold cross-validation (T fitted on 4 folds, scored on the 5th). Argmax is unchanged, so top-1 (73.0%) and top-3 (94.4%) accuracy are identical.",
+  "temperature_per_fold": [
+    0.56,
+    0.56,
+    0.56,
+    0.56,
+    0.58
+  ],
+  "temperature_used": 0.56,
+  "expected_calibration_error": {
+    "raw": 0.197,
+    "scaled": 0.056
+  },
+  "mean_confidence_when_correct": {
+    "raw": 0.598,
+    "scaled": 0.829
+  },
+  "threshold_sweep_scaled": [
+    {
+      "conf": 0.5,
+      "margin": 0.0,
+      "coverage": 0.833,
+      "precision": 0.793,
+      "tier": "medium floor"
+    },
+    {
+      "conf": 0.6,
+      "margin": 0.0,
+      "coverage": 0.74,
+      "precision": 0.849
+    },
+    {
+      "conf": 0.6,
+      "margin": 0.3,
+      "coverage": 0.721,
+      "precision": 0.858
+    },
+    {
+      "conf": 0.7,
+      "margin": 0.3,
+      "coverage": 0.637,
+      "precision": 0.883,
+      "tier": "high"
+    },
+    {
+      "conf": 0.75,
+      "margin": 0.4,
+      "coverage": 0.605,
+      "precision": 0.9
+    },
+    {
+      "conf": 0.8,
+      "margin": 0.5,
+      "coverage": 0.544,
+      "precision": 0.923
+    }
+  ],
+  "end_to_end_cascade_check": {
+    "high": {
+      "share": 0.643,
+      "precision": 0.889
+    },
+    "medium": {
+      "share": 0.189,
+      "precision": 0.486
+    },
+    "low": {
+      "share": 0.168,
+      "precision": 0.424
+    },
+    "quality_rejected": 19,
+    "mean_shown_confidence_when_correct_pct": 83.2
+  },
+  "rejected_idea_embedding_memory": {
+    "idea": "Learn instantly from tester corrections by storing each corrected photo's ViT embedding and letting the nearest stored example override or blend with the model.",
+    "result": "No gain or a loss under 5-fold CV. Best blend 74.4% top-1 vs 73.0% baseline (within noise); memory alone 65.6-68.8%; similarity-gated override 66.0-73.0%. The model's CLS embeddings barely separate classes (median nearest same-class cosine 0.66 vs 0.60 for other classes), so a neighbour lookup mostly adds noise.",
+    "conclusion": "Feedback must improve the model by retraining, not by a lookup table."
+  },
+  "known_gap": "PlantDoc has only 2 training photos of 'Tomato two spotted spider mites leaf' (vs 44-140 for other tomato classes) and none in its test split, so that class is effectively unlearned and cannot be measured. This is the class tester feedback should target first.",
+  "retrained_head": {
+    "what": "app/ml/disease/retrain.py retrains only the final Linear(768->28) layer on frozen ViT features of the PlantDoc TRAIN split (2,342 photos), class-balanced, L2-anchored to the published head. Hyperparameters fixed in advance, not tuned on TEST.",
+    "plantdoc_test_top1": {
+      "published": 72.5,
+      "retrained": 78.0,
+      "n_test_photos": 236
+    },
+    "temperature_for_retrained_head": 1.48,
+    "end_to_end_cascade_check": {
+      "high": {
+        "share": 0.704,
+        "precision": 0.877
+      },
+      "medium": {
+        "share": 0.133,
+        "precision": 0.692
+      },
+      "low": {
+        "share": 0.163,
+        "precision": 0.344
+      },
+      "mean_shown_confidence_when_correct_pct": 84.0
+    },
+    "spider_mite_false_positives_on_test": 0
+  },
+  "feedback_simulation": {
+    "setup": "Half of each class's PlantDoc TEST photos used as simulated tester corrections, the other half scored; halves swapped, 5 random splits (10 runs).",
+    "result": "Adding the simulated feedback to the PlantDoc-train retrain did not help: 78.0% -> 77.1% (-0.9pt, worse in 9/10 runs) at feedback weights 1, 5 and 20.",
+    "interpretation": "Extra photos of classes PlantDoc already covers well add nothing. Feedback can only help on classes PlantDoc lacks (spider mites: 2 training photos) and on real photos from this app's users — which is why retrain.py only uses feedback when it beats the plain retrain, cross-validated on the tester's own photos."
+  }
+}

@@ -15,15 +15,17 @@ from app.ml.disease import loader
 from app.ml.disease.labels import DISEASE_INFO
 from app.ml.disease.quality import check as check_quality
 
-# Calibrated by measurement on 215 real field photos, not guessed — see
-# backend/notebooks/disease_field_eval.json for the full sweep. The current
-# model is *underconfident*: mean top-1 probability is ~0.53 even when it is
-# correct, so a raw "38%" usually does not mean "probably wrong".
+# Chosen by measurement on 215 real field photos, not guessed. These apply
+# to *temperature-scaled* probabilities (see loader.TEMPERATURE), so the
+# confidence shown to the user now roughly matches how often the model is
+# actually right. The tiers keep the same coverage/precision as the raw-scale
+# thresholds they replace (0.30 medium, 0.40/0.20 high) — see
+# backend/notebooks/disease_calibration.json for both sweeps.
 #
 #   conf / margin -> coverage / precision-when-answered
-#   0.30 / 0.00   ->   83.3%  /  80.4%   <- "medium" floor
-#   0.40 / 0.20   ->   62.3%  /  88.8%   <- "high"
-#   0.50 / 0.20   ->   51.6%  /  91.0%
+#   0.50 / 0.00   ->   83.3%  /  79.3%   <- "medium" floor
+#   0.70 / 0.30   ->   63.7%  /  88.3%   <- "high"
+#   0.80 / 0.50   ->   54.4%  /  92.3%
 #
 # Rather than a single yes/no gate (which threw away the diagnosis, symptoms
 # and treatment for ~38% of photos), answers are tiered:
@@ -34,9 +36,9 @@ from app.ml.disease.quality import check as check_quality
 #            is almost always in the list).
 #   low    — same info for the nearest match and alternatives, but the
 #            recommendation is to retake the photo / consult a KVK.
-HIGH_CONFIDENCE = 0.40
-HIGH_MARGIN = 0.20
-MEDIUM_CONFIDENCE = 0.30
+HIGH_CONFIDENCE = 0.70
+HIGH_MARGIN = 0.30
+MEDIUM_CONFIDENCE = 0.50
 _TOP_K = 3
 _MIN_ALTERNATIVE_PROB = 0.05  # don't list near-zero noise as "possible"
 

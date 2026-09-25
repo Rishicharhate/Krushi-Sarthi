@@ -625,6 +625,33 @@ final diseaseHistoryProvider = FutureProvider<List<DiseaseResult>>((ref) async {
       .toList();
 });
 
+/// Every class the disease model knows — the list a tester picks the real
+/// disease from when giving feedback (testing builds only).
+final diseaseLabelsProvider = FutureProvider<List<DiseaseLabel>>((ref) async {
+  final api = await ref.watch(apiClientProvider.future);
+  final response = await api.get<List<dynamic>>(ApiConstants.diseaseLabels);
+  return (response.data ?? [])
+      .map((e) => DiseaseLabel.fromJson(e as Map<String, dynamic>))
+      .toList();
+});
+
+/// Records a tester's verdict on a scan. Returns how many labelled photos
+/// the server now has for retraining (backend/app/ml/disease/retrain.py).
+Future<int> submitDiseaseFeedback(
+  WidgetRef ref, {
+  required String scanId,
+  required bool isCorrect,
+  String? trueLabel,
+  String? note,
+}) async {
+  final api = await ref.read(apiClientProvider.future);
+  final response = await api.post<Map<String, dynamic>>(
+    ApiConstants.diseaseFeedback,
+    data: {'scan_id': scanId, 'is_correct': isCorrect, 'true_label': trueLabel, 'note': note},
+  );
+  return (response.data?['usable_for_training'] as num?)?.toInt() ?? 0;
+}
+
 /// Crop & fertilizer recommendation (Phase 3) — demo mode returns a canned
 /// result; real mode calls the RandomForest models in
 /// backend/app/ml/tabular/ via backend/app/api/recommend.py.
